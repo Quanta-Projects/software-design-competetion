@@ -1,3 +1,6 @@
+
+// src/components/transformerTable.jsx
+import { useNavigate } from "react-router-dom";
 import React from "react";
 import { Table, Dropdown } from "react-bootstrap";
 // If you use the icon below, make sure bootstrap-icons is loaded once in your app entry:
@@ -20,13 +23,17 @@ const KebabToggle = React.forwardRef(({ onClick }, ref) => (
   </button>
 ));
 
-export default function TransformerTable({
-  transformers = [],
-  favs,
-  onToggleFav,
-  onEdit,          // <-- new (optional)
+
+export default function TransformerTable({ transformers = [], favs, onToggleFav, onEdit,          // <-- new (optional)
   onDelete,        // <-- new (optional)
 }) {
+
+  const navigate = useNavigate();
+
+  // send the transformer id to /upload
+  const handleViewClick = (transformerId) => {
+    navigate("/upload", { state: { transformerId } });
+  };
   return (
     <Table striped bordered hover className="align-middle">
       <thead>
@@ -62,17 +69,17 @@ export default function TransformerTable({
               <td>{t.pole}</td>
               <td>{t.region}</td>
               <td>{t.type}</td>
-
               {/* Last column: View + 3-dots actions */}
               <td className="text-end">
                 <div className="d-inline-flex align-items-center gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-primary d-inline-flex align-items-center justify-content-center px-3"
-                    style={{ height: 25 }}
-                  >
-                    View
-                  </button>
+                                  <button
+                  type="button"
+                  className="btn btn-primary d-inline-flex align-items-center justify-content-center px-3"
+                  style={{ height: 25 }}
+                  onClick={() => handleViewClick(t.id)}
+                >
+                  View
+                </button>
 
                   <Dropdown align="end">
                     <Dropdown.Toggle as={KebabToggle}

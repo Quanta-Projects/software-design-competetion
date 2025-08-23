@@ -33,7 +33,7 @@ export default function Toolbar({
             className="icon-btn"
             onClick={() => {/* optional: trigger anything; filtering already live */}}
           >
-            <img src="/img/search.png" alt="search" width={20} height={20} style={{ display: "block", objectFit: "contain" }} />
+            {/* <img src="/img/search.png" alt="search" width={20} height={20} style={{ display: "block", objectFit: "contain" }} /> */}
             <i className="bi bi-search" />
           </Button>
         </InputGroup>
