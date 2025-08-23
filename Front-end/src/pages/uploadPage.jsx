@@ -10,9 +10,10 @@ const JSON_CANDIDATES = ["/data/transformers_with_timestamps.json", "/data/trans
 const API_BASE = import.meta?.env?.VITE_API_URL ?? "";
 
 // --- Fixed preview frame config (adjust as you like) ---
-const PREVIEW_MAX_WIDTH = 720;
-const PREVIEW_HEIGHT = 420;     // fixed height of the preview “viewport”
-const PREVIEW_PADDING = 24;     // border/margin padding around the image
+const PREVIEW_MAX_WIDTH = 1100; // card width
+const PREVIEW_HEIGHT = 420;     // fixed height of each image viewport
+const FRAME_PADDING = 18;       // inner padding that acts as the “border margin”
+const FRAME_RADIUS = 16;
 
 export default function UploadPage() {
   const location = useLocation();
@@ -130,7 +131,6 @@ export default function UploadPage() {
       };
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          // try to extract a hosted URL from server JSON
           let hostedUrl = "";
           try {
             const json = JSON.parse(xhr.responseText || "{}");
@@ -141,8 +141,7 @@ export default function UploadPage() {
           if (xhr.status === 404) {
             const err = new Error("Not Found");
             err.status = 404;
-            reject(err);
-            return;
+            reject(err); return;
           }
           let detail = "";
           try { detail = JSON.parse(xhr.responseText)?.error || ""; } catch { detail = xhr.responseText || ""; }
@@ -180,20 +179,16 @@ export default function UploadPage() {
       if (API_BASE) hosted = await realUpload(fd);
       else await simulateUpload();
 
-      // Upload succeeded -> show preview (keep uploader hidden)
       setUploading(false);
       setProgress(100);
       setStatusText("Upload complete.");
       setImageUrl(hosted || previewUrl);
     } catch (err) {
-      // On error -> go back to uploader so user can retry
       resetToUploader(err.message || "Upload error");
     }
   };
 
-  // Cancel button behavior:
-  // - If uploading: abort and go back to uploader
-  // - If preview is visible: clear preview and go back to uploader
+  // Cancel button:
   const handleCancel = () => {
     if (uploading) {
       resetToUploader("Upload cancelled.");
@@ -219,7 +214,7 @@ export default function UploadPage() {
         </Container>
       </div>
 
-      <Container style={{ maxWidth: 1100 }}>
+      <Container style={{ maxWidth: PREVIEW_MAX_WIDTH }}>
         {error && <Alert variant="danger" className="mt-3">{error}</Alert>}
 
         {record && (
@@ -239,7 +234,7 @@ export default function UploadPage() {
 
             {/* Uploader (only when idle and no preview) */}
             {showUploader && !uploading && !imageUrl && (
-              <div className="mt-3" style={{ maxWidth: PREVIEW_MAX_WIDTH }}>
+              <div className="mt-3" style={{ maxWidth: 720 }}>
                 <ThermalImageUploader onUpload={uploadToBackend} />
               </div>
             )}
@@ -247,8 +242,9 @@ export default function UploadPage() {
             {/* Progress card — ONLY while actively uploading */}
             {uploading && (
               <div className="mt-4">
-                <h5 className="mb-3">Thermal Image</h5>
                 <div className="p-4 rounded-4 shadow-sm" style={{ background: "white", border: "1px solid #eee" }}>
+                  <h5 className="mb-3">Thermal Image</h5>
+
                   <div className="text-center mb-3">
                     <div className="fw-semibold">Thermal image uploading.</div>
                     <div className="text-muted small">Thermal image is being uploaded and Reviewed.</div>
@@ -278,52 +274,133 @@ export default function UploadPage() {
               </div>
             )}
 
-            {/* Fixed-size preview after success */}
+            {/* Comparison view after success: ENTIRE block inside a single white card */}
             {imageUrl && !uploading && (
-              <div className="mt-4" style={{ maxWidth: PREVIEW_MAX_WIDTH }}>
-                <h5 className="mb-3">Uploaded Image</h5>
-
-                {/* Outer frame with fixed height + padding as the “border margin” */}
+              <div className="mt-4">
                 <div
-                  className="rounded-4 shadow-sm"
-                  style={{
-                    border: "1px solid #eee",
-                    background: "#fff",
-                    padding: PREVIEW_PADDING,
-                    height: PREVIEW_HEIGHT + PREVIEW_PADDING * 2, // total outer height stays consistent
-                    boxSizing: "border-box",
-                  }}
+                  className="p-4 rounded-4 shadow-sm"
+                  style={{ background: "#fff", border: "1px solid #eee" }}
                 >
-                  {/* Inner viewport that never changes size */}
+                  <h5 className="mb-4">Thermal Image Comparison</h5>
+
+                  {/* Two equal columns with fixed-height viewports */}
                   <div
                     style={{
-                      width: "100%",
-                      height: PREVIEW_HEIGHT,
-                      background: "#f6f7fb",
-                      borderRadius: 12,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      overflow: "hidden",
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 24,
                     }}
                   >
-                    <img
-                      src={imageUrl}
-                      alt="Uploaded thermal"
+                    {/* Baseline frame (empty for now) */}
+                    <div
                       style={{
-                        maxWidth: "100%",
-                        maxHeight: "100%",
-                        objectFit: "contain", // fit inside without stretching/cropping
-                        display: "block",
+                        padding: FRAME_PADDING,
+                        borderRadius: FRAME_RADIUS,
+                        background: "#fff",
+                        border: "1px solid #eef0f3",
+                        height: PREVIEW_HEIGHT + FRAME_PADDING * 2,
+                        boxSizing: "border-box",
                       }}
-                    />
-                  </div>
-                </div>
+                    >
+                      <div
+                        style={{
+                          position: "relative",
+                          width: "100%",
+                          height: PREVIEW_HEIGHT,
+                          background: "#0A2D9C", // keep blue only for empty baseline
+                          borderRadius: 12,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: 12,
+                            left: 12,
+                            padding: "4px 10px",
+                            fontSize: 12,
+                            background: "rgba(108,117,125,0.95)",
+                            color: "#fff",
+                            borderRadius: 999,
+                          }}
+                        >
+                          Baseline
+                        </span>
 
-                <div className="d-flex justify-content-center mt-3">
-                  <Button variant="light" className="px-4" onClick={handleCancel}>
-                    Cancel
-                  </Button>
+                        <div
+                          style={{
+                            width: "50%",
+                            height: "50%",
+                            border: "2px dashed rgba(255,255,255,0.35)",
+                            borderRadius: 12,
+                            background: "transparent",
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Current (uploaded) frame */}
+                    <div
+                      style={{
+                        padding: FRAME_PADDING,
+                        borderRadius: FRAME_RADIUS,
+                        background: "#fff",
+                        border: "1px solid #eef0f3",
+                        height: PREVIEW_HEIGHT + FRAME_PADDING * 2,
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: "relative",
+                          width: "100%",
+                          height: PREVIEW_HEIGHT,
+                          // IMPORTANT: no blue background when an image exists
+                          background: imageUrl ? "transparent" : "#0A2D9C",
+                          borderRadius: 12,
+                          overflow: "hidden",
+                        }}
+                      >
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: 12,
+                            left: 12,
+                            padding: "4px 10px",
+                            fontSize: 12,
+                            background: "rgba(59,52,213,0.95)",
+                            color: "#fff",
+                            borderRadius: 999,
+                            zIndex: 1,
+                          }}
+                        >
+                          Current
+                        </span>
+
+                        {/* Fill the whole viewport and avoid letterboxing */}
+                        <img
+                          src={imageUrl}
+                          alt="Current thermal"
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",        // <-- fills the frame (may crop a little)
+                            objectPosition: "center",
+                            display: "block",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="d-flex justify-content-center mt-3">
+                    <Button variant="light" className="px-4" onClick={handleCancel}>
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
