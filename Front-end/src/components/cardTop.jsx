@@ -1,26 +1,27 @@
 import React from "react";
 import { ToggleButtonGroup, ToggleButton } from "react-bootstrap";
 
-function CardTop() {
+function CardTop({ onAdd }) {
   return (
     <div className="d-flex align-items-center">
       {/* Left icon button */}
       <button
         type="button"
         className="btn btn-primary btn-sm d-inline-flex align-items-center me-2"
+        aria-label="Back"
       >
-        <img
-          src="/img/left.png"
-          alt="icon"
-          style={{ width: 20, height: 20 }}
-        />
+        <img src="/img/left.png" alt="icon" style={{ width: 20, height: 20 }} />
       </button>
 
       {/* Title */}
       <h4 className="card-title mb-0 me-3">Transformers</h4>
 
       {/* Add button */}
-      <button type="button" className="btn btn-primary shadow">
+      <button
+        type="button"
+        className="btn btn-primary shadow"
+        onClick={onAdd}                 // <-- opens the modal
+      >
         Add Transformer
       </button>
 

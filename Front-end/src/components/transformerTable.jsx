@@ -1,8 +1,28 @@
-// src/components/transformerTable.jsx
-import { Table } from "react-bootstrap";
-import { useNavigate } from "react-router-dom";
 
-// import "bootstrap-icons/font/bootstrap-icons.css"; // if you use <i className="bi ..."/>
+// src/components/transformerTable.jsx
+import { useNavigate } from "react-router-dom";
+import React from "react";
+import { Table, Dropdown } from "react-bootstrap";
+// If you use the icon below, make sure bootstrap-icons is loaded once in your app entry:
+// import "bootstrap-icons/font/bootstrap-icons.css";
+
+const KebabToggle = React.forwardRef(({ onClick }, ref) => (
+  <button
+    ref={ref}
+    type="button"
+    className="kebab-toggle"
+    aria-label="Row actions"
+    onClick={(e) => { e.preventDefault(); onClick?.(e); }}
+  >
+    {/* vertical ellipsis (no icon lib needed) */}
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="8" cy="3" r="1.5" />
+      <circle cx="8" cy="8" r="1.5" />
+      <circle cx="8" cy="13" r="1.5" />
+    </svg>
+  </button>
+));
+
 
 export default function TransformerTable({ transformers = [], favs, onToggleFav }) {
 
@@ -13,6 +33,14 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav 
     navigate("/upload", { state: { transformerId } });
   };
 
+
+export default function TransformerTable({
+  transformers = [],
+  favs,
+  onToggleFav,
+  onEdit,          // <-- new (optional)
+  onDelete,        // <-- new (optional)
+}) {
   return (
     <Table striped bordered hover className="align-middle">
       <thead>
@@ -22,7 +50,7 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav 
           <th>Pole NO.</th>
           <th>Region</th>
           <th>Type</th>
-          <th>Action</th>
+          <th style={{ width: 120 }} className="text-end"></th>
         </tr>
       </thead>
 
@@ -48,6 +76,7 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav 
               <td>{t.pole}</td>
               <td>{t.region}</td>
               <td>{t.type}</td>
+
               <td>
                 <button 
                   type="button" 
@@ -58,6 +87,43 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav 
                   View
                 </button>
               </td>             
+
+              {/* Last column: View + 3-dots actions */}
+              <td className="text-end">
+                <div className="d-inline-flex align-items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-primary d-inline-flex align-items-center justify-content-center px-3"
+                    style={{ height: 25 }}
+                  >
+                    View
+                  </button>
+
+                  <Dropdown align="end">
+                    <Dropdown.Toggle as={KebabToggle}
+                      variant="light"
+                      className="d-inline-flex align-items-center justify-content-center p-0"
+                      style={{ width: 32, height: 32, borderRadius: 8 }}
+                      aria-label="Row actions"
+                    >
+                      {/* If you don't use bootstrap-icons, replace with: <span style={{fontSize:18}}>⋮</span> */}
+                      <i className="bi bi-three-dots-vertical" />
+                    </Dropdown.Toggle>
+
+                    <Dropdown.Menu className="kebab-menu">
+                      <Dropdown.Item onClick={() => onEdit?.(t)}>
+                        Edit
+                      </Dropdown.Item>
+                      <Dropdown.Item
+                        className="text-danger"
+                        onClick={() => onDelete?.(t)}
+                      >
+                        Delete
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  </Dropdown>
+                </div>
+              </td>
             </tr>
           );
         })}

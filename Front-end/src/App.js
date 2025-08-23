@@ -5,6 +5,7 @@ import TransformersPage from './pages/TransformersPage';
 import SettingsPage from "./pages/settingsPage";
 import UploadPage from './pages/uploadPage';
 
+
 export default function App() {
   return (
     <Router>
