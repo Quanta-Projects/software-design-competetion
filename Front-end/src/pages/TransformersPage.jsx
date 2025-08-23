@@ -11,8 +11,10 @@ import Pager from "../components/pager";
 import AddTransformerModal from "../components/AddTransformerModal";
 
 export default function TransformersPage() {
-  // Load from /public/data/transformers.json
+  // Load transformers from backend API
   const [allTransformers, setAllTransformers] = useState([]);
+  const [regions, setRegions] = useState([]);
+  const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -20,10 +22,28 @@ export default function TransformersPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/data/transformers.json");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        if (!cancelled) setAllTransformers(json);
+        // Fetch transformers, regions, and types in parallel
+        const [transformersRes, regionsRes, typesRes] = await Promise.all([
+          fetch("http://localhost:8080/api/transformers"),
+          fetch("http://localhost:8080/api/transformers/regions"),
+          fetch("http://localhost:8080/api/transformers/types")
+        ]);
+
+        if (!transformersRes.ok) throw new Error(`HTTP ${transformersRes.status}`);
+        if (!regionsRes.ok) throw new Error(`HTTP ${regionsRes.status}`);
+        if (!typesRes.ok) throw new Error(`HTTP ${typesRes.status}`);
+
+        const [transformersJson, regionsJson, typesJson] = await Promise.all([
+          transformersRes.json(),
+          regionsRes.json(),
+          typesRes.json()
+        ]);
+
+        if (!cancelled) {
+          setAllTransformers(transformersJson);
+          setRegions(regionsJson);
+          setTypes(typesJson);
+        }
       } catch (err) {
         if (!cancelled) setLoadError(err.message || "Failed to load data");
       } finally {
@@ -60,48 +80,91 @@ export default function TransformersPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState(null); // holds the row being edited or null
 
-  const regions = [
-    "Nugegoda","Maharagama","Kotte","Dehiwala","Rajagiriya",
-    "Nawala","Battaramulla","Pelawatte","Boralesgamuwa",
-  ];
-
   const handleEdit = (row) => {
-    setEditing(row);
+    // Map backend field names to frontend field names for the modal
+    const editData = {
+      region: row.region,
+      no: row.transformerNo,
+      pole: row.pole_no,
+      type: row.transformerType,
+      location: row.location,
+    };
+    setEditing({ ...row, ...editData }); // Keep original row data plus mapped fields
     setShowAdd(true);
   };
 
-  const handleDelete = (row) => {
-    if (!window.confirm(`Delete ${row.no}?`)) return;
-    setAllTransformers(prev =>
-      prev.filter(x => (x.id ?? x.no) !== (row.id ?? row.no))
-    );
+  const handleDelete = async (row) => {
+    if (!window.confirm(`Delete ${row.transformerNo}?`)) return;
+    
+    try {
+      const response = await fetch(`http://localhost:8080/api/transformers/${row.id}`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        setAllTransformers(prev => prev.filter(x => x.id !== row.id));
+      } else {
+        alert('Failed to delete transformer');
+      }
+    } catch (error) {
+      alert('Error deleting transformer: ' + error.message);
+    }
   };
 
-  const handleAddSubmit = (payload) => {
-    // If editing: replace existing row; else add new one to the top
-    setAllTransformers(prev => {
-      const keyOf = (x) => x.id ?? x.no;
+  const handleAddSubmit = async (payload) => {
+    try {
+      // Map frontend field names to backend field names
+      const transformerData = {
+        transformerNo: payload.no,
+        location: payload.location,
+        pole_no: payload.pole,
+        region: payload.region,
+        transformerType: payload.type
+      };
 
       if (editing) {
-        const updated = {
-          ...editing,
-          ...payload,
-          id: editing.id ?? payload.id, // preserve existing id
-          updatedAt: new Date().toISOString(),
-        };
-        return prev.map(x => keyOf(x) === keyOf(editing) ? updated : x);
+        // Update existing transformer
+        const response = await fetch(`http://localhost:8080/api/transformers/${editing.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(transformerData),
+        });
+
+        if (response.ok) {
+          const updatedTransformer = await response.json();
+          setAllTransformers(prev =>
+            prev.map(x => x.id === editing.id ? updatedTransformer : x)
+          );
+        } else {
+          alert('Failed to update transformer');
+          return;
+        }
+      } else {
+        // Add new transformer
+        const response = await fetch('http://localhost:8080/api/transformers', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(transformerData),
+        });
+
+        if (response.ok) {
+          const newTransformer = await response.json();
+          setAllTransformers(prev => [newTransformer, ...prev]);
+        } else {
+          alert('Failed to add transformer');
+          return;
+        }
       }
 
-      const withId = {
-        id: payload.id || `TX-${Date.now()}`,
-        updatedAt: new Date().toISOString(),
-        ...payload,
-      };
-      return [withId, ...prev];
-    });
-
-    setEditing(null);
-    setShowAdd(false);
+      setEditing(null);
+      setShowAdd(false);
+    } catch (error) {
+      alert('Error saving transformer: ' + error.message);
+    }
   };
 
   // Time-range cutoff
@@ -120,11 +183,11 @@ export default function TransformersPage() {
     const q = query.trim().toLowerCase();
 
     let out = allTransformers.filter(t => {
-      if (starOnly && !favs.has(t.no)) return false;
+      if (starOnly && !favs.has(t.transformerNo)) return false;
       if (cutoff && t.updatedAt && new Date(t.updatedAt) < cutoff) return false;
 
       if (q) {
-        const hay = `${t.no} ${t.pole} ${t.region} ${t.type}`.toLowerCase();
+        const hay = `${t.transformerNo} ${t.pole_no} ${t.region} ${t.transformerType}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -132,10 +195,10 @@ export default function TransformersPage() {
 
     const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
     const key = (t) =>
-      sortBy === "pole"   ? t.pole   :
+      sortBy === "pole"   ? t.pole_no   :
       sortBy === "region" ? t.region :
-      sortBy === "type"   ? t.type   :
-                            t.no;
+      sortBy === "type"   ? t.transformerType   :
+                            t.transformerNo;
 
     out.sort((a, b) => collator.compare(key(a), key(b)));
     return out;
@@ -152,7 +215,16 @@ export default function TransformersPage() {
 
   const pagedRows = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
-    return rows.slice(start, start + PAGE_SIZE);
+    const pageData = rows.slice(start, start + PAGE_SIZE);
+    
+    // Map backend field names to frontend field names expected by the table
+    return pageData.map(transformer => ({
+      ...transformer, // Keep all original fields
+      no: transformer.transformerNo, // Map transformerNo to no
+      pole: transformer.pole_no, // Map pole_no to pole  
+      type: transformer.transformerType, // Map transformerType to type
+      region: transformer.region // region stays the same
+    }));
   }, [rows, page]);
 
   return (
@@ -208,6 +280,7 @@ export default function TransformersPage() {
         onClose={() => { setShowAdd(false); setEditing(null); }}
         onSubmit={handleAddSubmit}
         regions={regions}
+        types={types}
         initialData={editing}
       />
     </Container>

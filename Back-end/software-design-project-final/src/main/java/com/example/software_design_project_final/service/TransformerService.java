@@ -54,8 +54,8 @@ public class TransformerService {
      */
     public TransformerResponse addTransformer(TransformerRequest request) {
         // Check for duplicate name
-        if (transformerRepository.existsByNameIgnoreCase(request.getTransformer_no())) {
-            throw new DuplicateResourceException("Transformer with name '" + request.getTransformer_no() + "' already exists");
+        if (transformerRepository.existsByTransformerNoIgnoreCase(request.getTransformerNo())) {
+            throw new DuplicateResourceException("Transformer with name '" + request.getTransformerNo() + "' already exists");
         }
 
         Transformer transformer = mapper.map(request, Transformer.class);
@@ -71,12 +71,12 @@ public class TransformerService {
                 .orElseThrow(() -> new ResourceNotFoundException("Transformer not found with id: " + id));
 
         // Check for duplicate name (excluding current transformer)
-        if (!existingTransformer.getTransformer_no().equalsIgnoreCase(request.getTransformer_no()) &&
-                transformerRepository.existsByNameIgnoreCase(request.getTransformer_no())) {
-            throw new DuplicateResourceException("Transformer with name '" + request.getTransformer_no() + "' already exists");
+        if (!existingTransformer.getTransformerNo().equalsIgnoreCase(request.getTransformerNo()) &&
+                transformerRepository.existsByTransformerNoIgnoreCase(request.getTransformerNo())) {
+            throw new DuplicateResourceException("Transformer with name '" + request.getTransformerNo() + "' already exists");
         }
 
-        existingTransformer.setTransformer_no(request.getTransformer_no());
+        existingTransformer.setTransformerNo(request.getTransformerNo());
         existingTransformer.setLocation(request.getLocation());
         existingTransformer.setPole_no(request.getPole_no());
 
@@ -116,7 +116,7 @@ public class TransformerService {
                     .map(image -> {
                         ImageResponse imageResponse = mapper.map(image, ImageResponse.class);
                         imageResponse.setTransformerId(transformer.getId());
-                        imageResponse.setTransformer_no(transformer.getTransformer_no());
+                        imageResponse.setTransformerNo(transformer.getTransformerNo());
                         return imageResponse;
                     })
                     .collect(Collectors.toList());

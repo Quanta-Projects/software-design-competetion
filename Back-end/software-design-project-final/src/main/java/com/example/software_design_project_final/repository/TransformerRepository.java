@@ -16,9 +16,9 @@ import java.util.Optional;
 public interface TransformerRepository extends JpaRepository<Transformer, Integer> {
 
     /**
-     * Find transformer by name (case-insensitive)
+     * Find transformer by transformerNo (case-insensitive)
      */
-    Optional<Transformer> findByNameIgnoreCase(String transformer_no);
+    Optional<Transformer> findByTransformerNoIgnoreCase(String transformerNo);
 
     /**
      * Find transformers by location containing keyword
@@ -26,14 +26,14 @@ public interface TransformerRepository extends JpaRepository<Transformer, Intege
     List<Transformer> findByLocationContainingIgnoreCase(String location);
 
     /**
-     * Find transformers with capacity greater than specified value
+     * Find transformers by region (exact match for enum)
      */
-    List<Transformer> findByCapacityGreaterThan(String pole_no);
+    List<Transformer> findByRegion(Transformer.Region region);
 
     /**
-     * Check if transformer name already exists
+     * Check if transformerNo already exists
      */
-    boolean existsByNameIgnoreCase(String transformer_no);
+    boolean existsByTransformerNoIgnoreCase(String transformerNo);
 
     /**
      * Custom query to find transformers with image count
