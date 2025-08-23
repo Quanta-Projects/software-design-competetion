@@ -52,6 +52,7 @@
   background: #eef0f6;
   border: 1px solid #e3e7f1;
 }
+
 /* InsppectionHeader formattings */
 .soft-chip {
   background: #f6f7fb;             /* gentle gray/indigo tint */
@@ -66,4 +67,44 @@
 .back-btn {
   background: #eef0f6;
   border: 1px solid #e3e7f1;
+}
+
+
+/* thermalImageUploader formattings */
+.soft-card { background: #fff; }
+
+.pill-input {
+  border-radius: 12px;
+  border: 1px solid #ECEFF5;
+  background: #fff;
+  padding-top: .6rem;
+  padding-bottom: .6rem;
+}
+
+/* Deep purple button like the screenshot */
+.btn-deep {
+  background: #3b2ea3;
+  border-color: #3b2ea3;
+}
+.btn-deep:hover {
+  background: #2f2486;
+  border-color: #2f2486;
+}
+
+/* .page-bg {
+  background: radial-gradient(900px 350px at 10% -10%, #f2f4ff 0%, #fbfcff 50%, #ffffff 100%);
+} */
+
+/* top bar spacing */
+.topbar { padding: 16px 0; }
+
+/* title styling */
+.title { font-weight: 600; }
+
+/* burger button look */
+.nav-burger {
+  width: 42px;
+  height: 42px;
+  background: #eef1f9;
+  border: 1px solid #e5e9f4;
 }

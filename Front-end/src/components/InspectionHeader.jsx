@@ -1,4 +1,5 @@
 // InspectionHeader.jsx
+import { useNavigate } from 'react-router-dom';
 import { Card, Row, Col, Button, Dropdown, Stack, Badge } from "react-bootstrap";
 
 // If you're using Bootstrap Icons, include the CDN in index.html <head>:
@@ -18,13 +19,20 @@ export default function InspectionHeader({
   onDeleteBaseline = () => {},
   onOpenBaseline = () => {},
 }) {
+  
+  const navigate = useNavigate();
+
+  const handleBack = () => {
+    navigate('/transformers');
+  };
+
   return (
     <Card className="border-0 shadow-sm rounded-4 p-3 bg-white">
       {/* Top row: Back, ID + date, menu, last updated + status */}
       <Row className="align-items-center g-2">
         <Col md="auto" className="d-flex">
           <Button
-            onClick={onBack}
+            onClick={handleBack}
             variant="light"
             className="rounded-circle p-0 d-flex align-items-center justify-content-center back-btn"
             style={{ width: 40, height: 40 }}

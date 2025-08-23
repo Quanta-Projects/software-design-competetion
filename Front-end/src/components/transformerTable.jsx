@@ -1,9 +1,17 @@
 // src/components/transformerTable.jsx
 import { Table } from "react-bootstrap";
+import { useNavigate } from "react-router-dom";
 
 // import "bootstrap-icons/font/bootstrap-icons.css"; // if you use <i className="bi ..."/>
 
 export default function TransformerTable({ transformers = [], favs, onToggleFav }) {
+
+  const navigate = useNavigate();
+
+  const handleViewClick = (transformerNo) => {
+    navigate('/upload', { state: { transformerNo } });
+  };
+
   return (
     <Table striped bordered hover className="align-middle">
       <thead>
@@ -40,10 +48,15 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav 
               <td>{t.region}</td>
               <td>{t.type}</td>
               <td>
-                <button type="button" className="btn btn-primary d-inline-flex align-items-center justify-content-center px-3" style={{ height: 25 }}>
+                <button 
+                  type="button" 
+                  className="btn btn-primary d-inline-flex align-items-center justify-content-center px-3" 
+                  style={{ height: 25 }}
+                  onClick={() => handleViewClick(t.no)}
+                >
                   View
                 </button>
-              </td>
+              </td>             
             </tr>
           );
         })}
