@@ -24,7 +24,9 @@ const KebabToggle = React.forwardRef(({ onClick }, ref) => (
 ));
 
 
-export default function TransformerTable({ transformers = [], favs, onToggleFav }) {
+export default function TransformerTable({ transformers = [], favs, onToggleFav, onEdit,          // <-- new (optional)
+  onDelete,        // <-- new (optional)
+}) {
 
   const navigate = useNavigate();
 
@@ -32,15 +34,6 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav 
   const handleViewClick = (transformerId) => {
     navigate("/upload", { state: { transformerId } });
   };
-
-
-export default function TransformerTable({
-  transformers = [],
-  favs,
-  onToggleFav,
-  onEdit,          // <-- new (optional)
-  onDelete,        // <-- new (optional)
-}) {
   return (
     <Table striped bordered hover className="align-middle">
       <thead>
@@ -76,28 +69,17 @@ export default function TransformerTable({
               <td>{t.pole}</td>
               <td>{t.region}</td>
               <td>{t.type}</td>
-
-              <td>
-                <button 
-                  type="button" 
-                  className="btn btn-primary d-inline-flex align-items-center justify-content-center px-3" 
+              {/* Last column: View + 3-dots actions */}
+              <td className="text-end">
+                <div className="d-inline-flex align-items-center gap-2">
+                                  <button
+                  type="button"
+                  className="btn btn-primary d-inline-flex align-items-center justify-content-center px-3"
                   style={{ height: 25 }}
                   onClick={() => handleViewClick(t.id)}
                 >
                   View
                 </button>
-              </td>             
-
-              {/* Last column: View + 3-dots actions */}
-              <td className="text-end">
-                <div className="d-inline-flex align-items-center gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-primary d-inline-flex align-items-center justify-content-center px-3"
-                    style={{ height: 25 }}
-                  >
-                    View
-                  </button>
 
                   <Dropdown align="end">
                     <Dropdown.Toggle as={KebabToggle}
