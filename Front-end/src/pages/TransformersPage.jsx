@@ -9,6 +9,7 @@ import CardTop from "../components/cardTop";
 import TransformerTable from "../components/transformerTable";
 import Pager from "../components/pager";
 import AddTransformerModal from "../components/AddTransformerModal";
+import { getApiUrl } from "../utils/config";
 
 export default function TransformersPage() {
   // Load transformers from backend API
@@ -24,9 +25,9 @@ export default function TransformersPage() {
       try {
         // Fetch transformers, regions, and types in parallel
         const [transformersRes, regionsRes, typesRes] = await Promise.all([
-          fetch("http://localhost:8080/api/transformers"),
-          fetch("http://localhost:8080/api/transformers/regions"),
-          fetch("http://localhost:8080/api/transformers/types")
+          fetch(getApiUrl("transformers")),
+          fetch(getApiUrl("transformers/regions")),
+          fetch(getApiUrl("transformers/types"))
         ]);
 
         if (!transformersRes.ok) throw new Error(`HTTP ${transformersRes.status}`);
@@ -97,7 +98,7 @@ export default function TransformersPage() {
     if (!window.confirm(`Delete ${row.transformerNo}?`)) return;
     
     try {
-      const response = await fetch(`http://localhost:8080/api/transformers/${row.id}`, {
+      const response = await fetch(getApiUrl(`transformers/${row.id}`), {
         method: 'DELETE',
       });
       
@@ -124,7 +125,7 @@ export default function TransformersPage() {
 
       if (editing) {
         // Update existing transformer
-        const response = await fetch(`http://localhost:8080/api/transformers/${editing.id}`, {
+        const response = await fetch(getApiUrl(`transformers/${editing.id}`), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -143,7 +144,7 @@ export default function TransformersPage() {
         }
       } else {
         // Add new transformer
-        const response = await fetch('http://localhost:8080/api/transformers', {
+        const response = await fetch(getApiUrl('transformers'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
