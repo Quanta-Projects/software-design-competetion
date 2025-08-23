@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import AppLayout from './layouts/AppLayout';
 import TransformersPage from './pages/TransformersPage';
 import SettingsPage from "./pages/settingsPage";
+import UploadPage from './pages/uploadPage';
+
 
 export default function App() {
   return (
@@ -12,6 +14,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/transformers" replace />} />
           <Route path="/transformers" element={<TransformersPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/upload" element={<UploadPage />} />
         </Route>
       </Routes>
     </Router>
