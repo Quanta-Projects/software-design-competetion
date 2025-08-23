@@ -1,0 +1,42 @@
+# Ignore unnecessary files during Docker build
+node_modules
+npm-debug.log
+Dockerfile*
+docker-compose*
+README.md
+.env
+.git
+.gitignore
+*.md
+.nyc_output
+coverage
+.cache
+
+# Maven build artifacts
+target/
+!target/software-design-project-final-0.0.1-SNAPSHOT.jar
+*.jar
+!target/*.jar
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+.tmp/
+temp/
+
+# Test files
+.coverage
+.nyc_output
