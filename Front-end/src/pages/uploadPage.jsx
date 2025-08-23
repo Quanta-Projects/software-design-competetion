@@ -1,81 +1,210 @@
-import { useEffect, useMemo, useState } from "react";
+// src/pages/uploadPage.jsx
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Container, Button, Offcanvas, Alert } from "react-bootstrap";
 import InspectionHeader from "../components/InspectionHeader";
 import ThermalImageUploader from "../components/thermalImageUploader";
 
-const JSON_CANDIDATES = [ 
-  "/data/transformers_with_timestamps.json",  // fallback if you keep the plural
-];
+const JSON_CANDIDATES = ["/data/transformers_with_timestamps.json", "/data/transformers.json"];
+// If you have a backend (e.g., http://localhost:8080), set VITE_API_URL in .env
+const API_BASE = import.meta?.env?.VITE_API_URL ?? "";
+
+// --- Fixed preview frame config (adjust as you like) ---
+const PREVIEW_MAX_WIDTH = 720;
+const PREVIEW_HEIGHT = 420;     // fixed height of the preview “viewport”
+const PREVIEW_PADDING = 24;     // border/margin padding around the image
 
 export default function UploadPage() {
   const location = useLocation();
-  const transformerId = location.state?.transformerId; // sent from table
+  const transformerId = location.state?.transformerId;
 
   const [record, setRecord] = useState(null);
   const [error, setError] = useState(null);
   const [showMenu, setShowMenu] = useState(false);
 
-  useEffect(() => {
-    let isMounted = true;
+  // Upload UI
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [statusText, setStatusText] = useState("");
+  const [showUploader, setShowUploader] = useState(true);
+  const [imageUrl, setImageUrl] = useState(""); // preview after success
 
-    const load = async () => {
+  const xhrRef = useRef(null);
+  const simTimerRef = useRef(null);
+  const previewRevokeRef = useRef(null);
+
+  // ---------- Load selected transformer ----------
+  useEffect(() => {
+    let on = true;
+    (async () => {
       try {
         setError(null);
         let json = null;
-
-        // try candidates in order
         for (const url of JSON_CANDIDATES) {
           try {
             const res = await fetch(url, { cache: "no-store" });
-            if (res.ok) {
-              json = await res.json();
-              break;
-            }
-          } catch (_) {}
+            if (res.ok) { json = await res.json(); break; }
+          } catch {}
         }
-
         if (!json) throw new Error("Could not load transformer JSON.");
-
         const arr = Array.isArray(json) ? json : [json];
-        const found =
-          arr.find((x) => x.id === transformerId) ||
-          arr.find((x) => x.no === transformerId); // fallback if you pass no
-
+        const found = arr.find((x) => x.id === transformerId) || arr.find((x) => x.no === transformerId);
         if (!found) throw new Error(`Transformer not found for id: ${transformerId}`);
-
-        if (isMounted) setRecord(found);
+        if (on) setRecord(found);
       } catch (e) {
-        if (isMounted) setError(e.message || String(e));
+        if (on) setError(e.message || String(e));
       }
-    };
-
-    if (transformerId) load();
-    else setError("No transformer selected.");
-
+    })();
     return () => {
-      isMounted = false;
+      on = false;
+      clearInterval(simTimerRef.current);
+      if (previewRevokeRef.current) { previewRevokeRef.current(); previewRevokeRef.current = null; }
     };
   }, [transformerId]);
 
   const createdPretty = useMemo(() => (record?.createdAt ? formatPretty(record.createdAt) : "—"), [record]);
   const updatedPretty = useMemo(() => (record?.updatedAt ? formatPretty(record.updatedAt) : "—"), [record]);
 
-  const uploadToBackend = async (formData /*, { file, condition } */) => {
-    // attach useful metadata for your backend
-    if (record?.id) formData.append("transformerId", record.id);
-    if (record?.no) formData.append("transformerNo", record.no);
-
-    const res = await fetch("/api/images/thermal", {
-      method: "POST",
-      body: formData,
-    });
-    if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+  // ---------- Helpers ----------
+  const getFile = (payload) => {
+    if (payload instanceof FormData) {
+      for (const [, v] of payload.entries()) if (v instanceof File) return v;
+    }
+    if (payload instanceof File || payload?.constructor?.name === "File") return payload;
+    if (payload?.file instanceof File) return payload.file;
+    if (Array.isArray(payload?.files) && payload.files[0] instanceof File) return payload.files[0];
+    return null;
   };
 
+  const toFormData = (payload) => {
+    if (payload instanceof FormData) return payload;
+    const fd = new FormData();
+    const f = getFile(payload);
+    if (f) fd.append("file", f, f.name); // change key if backend expects different
+    if (payload && typeof payload === "object" && !(payload instanceof File)) {
+      Object.entries(payload).forEach(([k, v]) => {
+        if (k !== "file" && k !== "files") fd.append(k, String(v));
+      });
+    }
+    return fd;
+  };
+
+  const resetToUploader = (message = "") => {
+    try { xhrRef.current?.abort(); } catch {}
+    if (simTimerRef.current) clearInterval(simTimerRef.current);
+    if (previewRevokeRef.current) { previewRevokeRef.current(); previewRevokeRef.current = null; }
+    setUploading(false);
+    setProgress(0);
+    setStatusText(message);
+    setImageUrl("");
+    setShowUploader(true);
+  };
+
+  // ---------- Simulated upload (no backend) ----------
+  const simulateUpload = () =>
+    new Promise((resolve) => {
+      setUploading(true);
+      setProgress(0);
+      setStatusText("Thermal image is being uploaded and reviewed.");
+      const start = Date.now();
+      const duration = 1800 + Math.random() * 1200; // 1.8–3.0s
+      simTimerRef.current = setInterval(() => {
+        const t = Date.now() - start;
+        const pct = Math.min(100, Math.round((t / duration) * 100));
+        setProgress(pct);
+        if (pct >= 100) {
+          clearInterval(simTimerRef.current);
+          resolve();
+        }
+      }, 60);
+    });
+
+  // ---------- Real upload (with progress) ----------
+  const realUpload = (fd) =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhrRef.current = xhr;
+      xhr.open("POST", `${API_BASE}/api/images/thermal`);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) setProgress(Math.min(100, Math.round((e.loaded / e.total) * 100)));
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          // try to extract a hosted URL from server JSON
+          let hostedUrl = "";
+          try {
+            const json = JSON.parse(xhr.responseText || "{}");
+            hostedUrl = json.url || json.fileUrl || json.location || "";
+          } catch {}
+          resolve(hostedUrl || "");
+        } else {
+          if (xhr.status === 404) {
+            const err = new Error("Not Found");
+            err.status = 404;
+            reject(err);
+            return;
+          }
+          let detail = "";
+          try { detail = JSON.parse(xhr.responseText)?.error || ""; } catch { detail = xhr.responseText || ""; }
+          reject(new Error(`Upload failed (${xhr.status})${detail ? ` – ${detail}` : ""}`));
+        }
+      };
+      xhr.onerror = () => reject(new Error("Network error during upload."));
+      xhr.onabort  = () => reject(new Error("Upload cancelled"));
+      xhr.send(fd);
+    });
+
+  // ---------- onUpload from ThermalImageUploader ----------
+  const uploadToBackend = async (payload) => {
+    const file = getFile(payload);
+    if (!file) throw new Error("No image file provided.");
+
+    // Hide uploader immediately after selection
+    setShowUploader(false);
+
+    // Prepare a local preview URL (revealed on success)
+    if (previewRevokeRef.current) { previewRevokeRef.current(); previewRevokeRef.current = null; }
+    const previewUrl = URL.createObjectURL(file);
+    previewRevokeRef.current = () => URL.revokeObjectURL(previewUrl);
+
+    setUploading(true);
+    setProgress(0);
+    setStatusText("Thermal image is being uploaded and reviewed.");
+
+    const fd = toFormData(payload);
+    if (record?.id) fd.append("transformerId", record.id);
+    if (record?.no) fd.append("transformerNo", record.no);
+
+    try {
+      let hosted = "";
+      if (API_BASE) hosted = await realUpload(fd);
+      else await simulateUpload();
+
+      // Upload succeeded -> show preview (keep uploader hidden)
+      setUploading(false);
+      setProgress(100);
+      setStatusText("Upload complete.");
+      setImageUrl(hosted || previewUrl);
+    } catch (err) {
+      // On error -> go back to uploader so user can retry
+      resetToUploader(err.message || "Upload error");
+    }
+  };
+
+  // Cancel button behavior:
+  // - If uploading: abort and go back to uploader
+  // - If preview is visible: clear preview and go back to uploader
+  const handleCancel = () => {
+    if (uploading) {
+      resetToUploader("Upload cancelled.");
+    } else if (imageUrl) {
+      resetToUploader("");
+    }
+  };
+
+  // ---------- UI ----------
   return (
     <div className="page-bg min-vh-100">
-      {/* Top bar (burger + title only) */}
       <div className="topbar">
         <Container className="d-flex align-items-center gap-3">
           <Button
@@ -103,14 +232,101 @@ export default function UploadPage() {
                 transformerNo={record.no}
                 poleNo={record.pole}
                 branch={record.region}
-                inspectedBy={"A-110"}  // not in JSON; change if you store it
-                status={{ text: "In progress", variant: "success" }}
+                inspectedBy={"A-110"}
+                status={{ text: uploading ? "Uploading…" : "In progress", variant: "success" }}
               />
             </div>
 
-            <div className="mt-3" style={{ maxWidth: 520 }}>
-              <ThermalImageUploader onUpload={uploadToBackend} />
-            </div>
+            {/* Uploader (only when idle and no preview) */}
+            {showUploader && !uploading && !imageUrl && (
+              <div className="mt-3" style={{ maxWidth: PREVIEW_MAX_WIDTH }}>
+                <ThermalImageUploader onUpload={uploadToBackend} />
+              </div>
+            )}
+
+            {/* Progress card — ONLY while actively uploading */}
+            {uploading && (
+              <div className="mt-4">
+                <h5 className="mb-3">Thermal Image</h5>
+                <div className="p-4 rounded-4 shadow-sm" style={{ background: "white", border: "1px solid #eee" }}>
+                  <div className="text-center mb-3">
+                    <div className="fw-semibold">Thermal image uploading.</div>
+                    <div className="text-muted small">Thermal image is being uploaded and Reviewed.</div>
+                  </div>
+
+                  <div className="position-relative" style={{ height: 10, borderRadius: 8, background: "#e9ecef" }}>
+                    <div
+                      style={{
+                        width: `${progress}%`,
+                        height: "100%",
+                        borderRadius: 8,
+                        background: "#3b34d5",
+                        transition: "width 120ms linear",
+                      }}
+                    />
+                    <div className="position-absolute top-50 end-0 translate-middle-y pe-2 small text-muted">
+                      {progress}%
+                    </div>
+                  </div>
+
+                  <div className="d-flex justify-content-center mt-3">
+                    <Button variant="light" className="px-4" onClick={handleCancel}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Fixed-size preview after success */}
+            {imageUrl && !uploading && (
+              <div className="mt-4" style={{ maxWidth: PREVIEW_MAX_WIDTH }}>
+                <h5 className="mb-3">Uploaded Image</h5>
+
+                {/* Outer frame with fixed height + padding as the “border margin” */}
+                <div
+                  className="rounded-4 shadow-sm"
+                  style={{
+                    border: "1px solid #eee",
+                    background: "#fff",
+                    padding: PREVIEW_PADDING,
+                    height: PREVIEW_HEIGHT + PREVIEW_PADDING * 2, // total outer height stays consistent
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {/* Inner viewport that never changes size */}
+                  <div
+                    style={{
+                      width: "100%",
+                      height: PREVIEW_HEIGHT,
+                      background: "#f6f7fb",
+                      borderRadius: 12,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <img
+                      src={imageUrl}
+                      alt="Uploaded thermal"
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "100%",
+                        objectFit: "contain", // fit inside without stretching/cropping
+                        display: "block",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="d-flex justify-content-center mt-3">
+                  <Button variant="light" className="px-4" onClick={handleCancel}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </Container>
@@ -125,14 +341,14 @@ export default function UploadPage() {
   );
 }
 
-/* Same pretty-date formatter used in the header mock */
+/* Pretty date formatter */
 function formatPretty(iso) {
   try {
     const d = new Date(iso);
-    const weekday = d.toLocaleString("en-US", { weekday: "short" });      // Mon
-    const day = d.getDate();                                              // 21
-    const month = d.toLocaleString("en-US", { month: "long" });           // May
-    const year = d.getFullYear();                                         // 2023
+    const weekday = d.toLocaleString("en-US", { weekday: "short" });
+    const day = d.getDate();
+    const month = d.toLocaleString("en-US", { month: "long" });
+    const year = d.getFullYear();
     let t = d.toLocaleString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
     t = t.replace(" ", "").replace("AM", "am").replace("PM", "pm").replace(":", ".");
     return `${weekday}(${day}), ${month}, ${year} ${t}`;
