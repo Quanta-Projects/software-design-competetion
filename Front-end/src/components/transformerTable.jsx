@@ -1,29 +1,14 @@
+// src/components/transformerTable.jsx
 import { Table } from "react-bootstrap";
-import { useState } from "react";
-// If you haven't already, add once in your app entry:
-// import "bootstrap-icons/font/bootstrap-icons.css";
 
-function TransformerTable({ transformers = [] }) {
-  // Track favourites by transformer.no
-  const [favs, setFavs] = useState(() => new Set());
+// import "bootstrap-icons/font/bootstrap-icons.css"; // if you use <i className="bi ..."/>
 
-  const toggleFav = (no) => {
-    setFavs((prev) => {
-      const next = new Set(prev);
-      next.has(no) ? next.delete(no) : next.add(no);
-      return next;
-    });
-  };
-
+export default function TransformerTable({ transformers = [], favs, onToggleFav }) {
   return (
     <Table striped bordered hover className="align-middle">
       <thead>
         <tr>
-          <th
-            style={{ width: 52 }}
-            aria-label="Favourite"
-            className="text-center"
-          />
+          <th style={{ width: 52 }} aria-label="Favourite" className="text-center" />
           <th>Transformer No.</th>
           <th>Pole NO.</th>
           <th>Region</th>
@@ -33,15 +18,15 @@ function TransformerTable({ transformers = [] }) {
       </thead>
 
       <tbody>
-        {transformers.map((transformer) => {
-          const isFav = favs.has(transformer.no);
+        {transformers.map((t) => {
+          const isFav = favs?.has(t.no);
           return (
-            <tr key={transformer.no}>
+            <tr key={t.id ?? t.no}>
               <td className="text-center align-middle">
                 <button
                   type="button"
-                  onClick={() => toggleFav(transformer.no)}
-                  aria-pressed={isFav}
+                  onClick={() => onToggleFav?.(t.no)}
+                  aria-pressed={!!isFav}
                   aria-label={isFav ? "Unmark favourite" : "Mark as favourite"}
                   className={`btn ${isFav ? "btn-warning" : "btn-light"} d-inline-flex align-items-center justify-content-center p-0 shadow-sm`}
                   style={{ width: 25, height: 25, borderRadius: 8 }}
@@ -50,10 +35,10 @@ function TransformerTable({ transformers = [] }) {
                 </button>
               </td>
 
-              <td>{transformer.no}</td>
-              <td>{transformer.pole}</td>
-              <td>{transformer.region}</td>
-              <td>{transformer.type}</td>
+              <td>{t.no}</td>
+              <td>{t.pole}</td>
+              <td>{t.region}</td>
+              <td>{t.type}</td>
               <td>
                 <button type="button" className="btn btn-primary d-inline-flex align-items-center justify-content-center px-3" style={{ height: 25 }}>
                   View
@@ -64,9 +49,5 @@ function TransformerTable({ transformers = [] }) {
         })}
       </tbody>
     </Table>
-
   );
 }
-
-
-export default TransformerTable;

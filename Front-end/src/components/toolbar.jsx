@@ -1,36 +1,26 @@
+// src/components/toolbar.jsx
 import { Row, Col, Form, InputGroup, Button } from "react-bootstrap";
-import { useState } from "react";
 
-export default function Toolbar() {
-  const [sortBy, setSortBy] = useState("number");
-  const [query, setQuery] = useState("");
-  const [range, setRange] = useState("all");
-  const [starOn, setStarOn] = useState(false); // toggle state for star button
-
-  const handleReset = () => {
-    setSortBy("number");
-    setQuery("");
-    setRange("all");
-    setStarOn(false);
-  };
-
+export default function Toolbar({
+  sortBy, setSortBy,
+  query, setQuery,
+  range, setRange,
+  starOnly, setStarOnly,
+  onReset
+}) {
   return (
     <Row className="g-2 align-items-center">
-      {/* Sort by (dropdown) */}
+      {/* Sort by */}
       <Col xs="12" md="auto">
-        <Form.Select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="pill"
-        >
+        <Form.Select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="pill">
           <option value="number">By Transformer No</option>
-          <option value="name">By Name</option>
-          <option value="status">By Status</option>
-          <option value="location">By Location</option>
+          <option value="pole">By Pole No</option>
+          <option value="region">By Region</option>
+          <option value="type">By Type</option>
         </Form.Select>
       </Col>
 
-      {/* Search + button */}
+      {/* Search */}
       <Col xs={12} md="4" lg="5">
         <InputGroup className="pill">
           <Form.Control
@@ -38,52 +28,35 @@ export default function Toolbar() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <Button variant="primary" className="icon-btn">
-            <img
-            src="/img/search.png"
-            alt="favorites"
-            width={20}
-            height={20}
-            style={{ display: "block", objectFit: "contain" }} // perfectly centered
-          />
+          <Button
+            variant="primary"
+            className="icon-btn"
+            onClick={() => {/* optional: trigger anything; filtering already live */}}
+          >
+            <img src="/img/search.png" alt="search" width={20} height={20} style={{ display: "block", objectFit: "contain" }} />
             <i className="bi bi-search" />
           </Button>
         </InputGroup>
       </Col>
 
-      {/* Star (favorites) */}
+      {/* Favorites only */}
       <Col xs="auto" className="d-none d-md-block">
         <Button
           type="button"
-          onClick={() => setStarOn((v) => !v)}
-          aria-pressed={starOn}
-          title={starOn ? "Show all (favorites off)" : "Show favorites only"}
-          variant={starOn ? "warning" : "light"} // lit vs off
+          onClick={() => setStarOnly(v => !v)}
+          aria-pressed={starOnly}
+          title={starOnly ? "Show all" : "Show favorites only"}
+          variant={starOnly ? "warning" : "light"}
           className="icon-only shadow-sm d-flex align-items-center justify-content-center"
-          style={{
-            width: 44,           // square
-            height: 44,          // square
-            padding: 0,          // no extra padding
-            borderRadius: 12,    // slightly rounded square (not pill)
-          }}
+          style={{ width: 44, height: 44, padding: 0, borderRadius: 12 }}
         >
-          <img
-            src="/img/star.png"
-            alt="favorites"
-            width={20}
-            height={20}
-            style={{ display: "block", objectFit: "contain" }} // perfectly centered
-          />
+          <img src="/img/star.png" alt="favorites" width={20} height={20} style={{ display: "block", objectFit: "contain" }} />
         </Button>
       </Col>
 
-      {/* Time filter */}
+      {/* Time range */}
       <Col xs="12" md="auto">
-        <Form.Select
-          value={range}
-          onChange={(e) => setRange(e.target.value)}
-          className="pill"
-        >
+        <Form.Select value={range} onChange={(e) => setRange(e.target.value)} className="pill">
           <option value="all">All Time</option>
           <option value="24h">Last 24 hours</option>
           <option value="7d">Last 7 days</option>
@@ -94,11 +67,7 @@ export default function Toolbar() {
 
       {/* Reset */}
       <Col xs="auto">
-        <Button
-          variant="link"
-          className="text-primary fw-semibold p-0"
-          onClick={handleReset}
-        >
+        <Button variant="link" className="text-primary fw-semibold p-0" onClick={onReset}>
           Reset Filters
         </Button>
       </Col>
