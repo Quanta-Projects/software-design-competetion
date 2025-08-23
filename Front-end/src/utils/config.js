@@ -28,3 +28,13 @@ export const getApiUrl = (endpoint) => {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
   return `${baseUrl}/${cleanEndpoint}`;
 };
+
+/**
+ * Build a complete image URL for uploaded files
+ */
+export const getImageUrl = (fileName) => {
+  // Get base URL without /api suffix
+  const apiBaseUrl = getApiBaseUrl();
+  const baseUrl = apiBaseUrl.replace('/api', '');
+  return `${baseUrl}/uploads/images/${fileName}`;
+};
