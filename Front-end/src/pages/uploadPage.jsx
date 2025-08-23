@@ -6,14 +6,15 @@ import InspectionHeader from "../components/InspectionHeader";
 import ThermalImageUploader from "../components/thermalImageUploader";
 
 const JSON_CANDIDATES = ["/data/transformers_with_timestamps.json", "/data/transformers.json"];
-// If you have a backend (e.g., http://localhost:8080), set VITE_API_URL in .env
 const API_BASE = import.meta?.env?.VITE_API_URL ?? "";
 
-// --- Fixed preview frame config (adjust as you like) ---
-const PREVIEW_MAX_WIDTH = 1100; // card width
-const PREVIEW_HEIGHT = 420;     // fixed height of each image viewport
-const FRAME_PADDING = 18;       // inner padding that acts as the “border margin”
+// Fixed preview frame config
+const PREVIEW_MAX_WIDTH = 1100;
+const PREVIEW_HEIGHT = 420;
 const FRAME_RADIUS = 16;
+
+// Synchronized zoom settings
+const SYNC_ZOOM_SCALE = 2.2;
 
 export default function UploadPage() {
   const location = useLocation();
@@ -28,7 +29,22 @@ export default function UploadPage() {
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("");
   const [showUploader, setShowUploader] = useState(true);
-  const [imageUrl, setImageUrl] = useState(""); // preview after success
+  const [imageUrl, setImageUrl] = useState("");
+
+  // NEW: simple metadata states
+  const [baselineMeta, setBaselineMeta] = useState({ uploadedAt: "" });
+  const [currentMeta, setCurrentMeta] = useState({ uploadedAt: "" });
+
+  // Individual pan/zoom for CURRENT image (used when sync zoom is OFF)
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [panning, setPanning] = useState(false);
+  const panRef = useRef({ startX: 0, startY: 0, startOffset: { x: 0, y: 0 } });
+
+  // Synchronized zoom state
+  const [syncZoomOn, setSyncZoomOn] = useState(false);
+  const [isHoveringSync, setIsHoveringSync] = useState(false);
+  const [hoverNorm, setHoverNorm] = useState({ x: 0.5, y: 0.5 });
 
   const xhrRef = useRef(null);
   const simTimerRef = useRef(null);
@@ -51,7 +67,16 @@ export default function UploadPage() {
         const arr = Array.isArray(json) ? json : [json];
         const found = arr.find((x) => x.id === transformerId) || arr.find((x) => x.no === transformerId);
         if (!found) throw new Error(`Transformer not found for id: ${transformerId}`);
-        if (on) setRecord(found);
+        if (on) {
+          setRecord(found);
+          // try to hydrate baseline meta from whatever your JSON might contain
+          const baselineTs =
+            found?.baselineUploadedAt ||
+            found?.baselineImage?.uploadedAt ||
+            found?.baselineDate ||
+            "";
+          if (baselineTs) setBaselineMeta({ uploadedAt: baselineTs });
+        }
       } catch (e) {
         if (on) setError(e.message || String(e));
       }
@@ -81,13 +106,19 @@ export default function UploadPage() {
     if (payload instanceof FormData) return payload;
     const fd = new FormData();
     const f = getFile(payload);
-    if (f) fd.append("file", f, f.name); // change key if backend expects different
+    if (f) fd.append("file", f, f.name);
     if (payload && typeof payload === "object" && !(payload instanceof File)) {
       Object.entries(payload).forEach(([k, v]) => {
         if (k !== "file" && k !== "files") fd.append(k, String(v));
       });
     }
     return fd;
+  };
+
+  const resetPanZoom = () => {
+    setZoom(1);
+    setOffset({ x: 0, y: 0 });
+    setPanning(false);
   };
 
   const resetToUploader = (message = "") => {
@@ -99,16 +130,18 @@ export default function UploadPage() {
     setStatusText(message);
     setImageUrl("");
     setShowUploader(true);
+    resetPanZoom();
+    setCurrentMeta({ uploadedAt: "" });
   };
 
-  // ---------- Simulated upload (no backend) ----------
+  // ---------- Simulated upload ----------
   const simulateUpload = () =>
     new Promise((resolve) => {
       setUploading(true);
       setProgress(0);
       setStatusText("Thermal image is being uploaded and reviewed.");
       const start = Date.now();
-      const duration = 1800 + Math.random() * 1200; // 1.8–3.0s
+      const duration = 1800 + Math.random() * 1200;
       simTimerRef.current = setInterval(() => {
         const t = Date.now() - start;
         const pct = Math.min(100, Math.round((t / duration) * 100));
@@ -120,7 +153,7 @@ export default function UploadPage() {
       }, 60);
     });
 
-  // ---------- Real upload (with progress) ----------
+  // ---------- Real upload (return url + uploadedAt if provided) ----------
   const realUpload = (fd) =>
     new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -132,11 +165,13 @@ export default function UploadPage() {
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           let hostedUrl = "";
+          let uploadedAt = "";
           try {
             const json = JSON.parse(xhr.responseText || "{}");
             hostedUrl = json.url || json.fileUrl || json.location || "";
+            uploadedAt = json.uploadedAt || json.createdAt || json.timestamp || "";
           } catch {}
-          resolve(hostedUrl || "");
+          resolve({ url: hostedUrl || "", uploadedAt });
         } else {
           if (xhr.status === 404) {
             const err = new Error("Not Found");
@@ -153,15 +188,13 @@ export default function UploadPage() {
       xhr.send(fd);
     });
 
-  // ---------- onUpload from ThermalImageUploader ----------
+  // ---------- onUpload ----------
   const uploadToBackend = async (payload) => {
     const file = getFile(payload);
     if (!file) throw new Error("No image file provided.");
 
-    // Hide uploader immediately after selection
     setShowUploader(false);
 
-    // Prepare a local preview URL (revealed on success)
     if (previewRevokeRef.current) { previewRevokeRef.current(); previewRevokeRef.current = null; }
     const previewUrl = URL.createObjectURL(file);
     previewRevokeRef.current = () => URL.revokeObjectURL(previewUrl);
@@ -175,20 +208,25 @@ export default function UploadPage() {
     if (record?.no) fd.append("transformerNo", record.no);
 
     try {
-      let hosted = "";
-      if (API_BASE) hosted = await realUpload(fd);
-      else await simulateUpload();
+      if (API_BASE) {
+        const { url, uploadedAt } = await realUpload(fd);
+        setImageUrl(url || previewUrl);
+        setCurrentMeta({ uploadedAt: uploadedAt || new Date().toISOString() });
+      } else {
+        await simulateUpload();
+        setImageUrl(previewUrl);
+        setCurrentMeta({ uploadedAt: new Date().toISOString() });
+      }
 
       setUploading(false);
       setProgress(100);
       setStatusText("Upload complete.");
-      setImageUrl(hosted || previewUrl);
+      resetPanZoom();
     } catch (err) {
       resetToUploader(err.message || "Upload error");
     }
   };
 
-  // Cancel button:
   const handleCancel = () => {
     if (uploading) {
       resetToUploader("Upload cancelled.");
@@ -196,6 +234,94 @@ export default function UploadPage() {
       resetToUploader("");
     }
   };
+
+  // ----- Pan/Zoom handlers (when sync zoom is OFF) -----
+  const onWheelZoom = (e) => {
+    if (syncZoomOn) return;
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    setZoom((z) => Math.min(6, Math.max(1, z * factor)));
+  };
+
+  const onMouseDown = (e) => {
+    if (syncZoomOn || zoom <= 1) return;
+    e.preventDefault();
+    setPanning(true);
+    panRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startOffset: { ...offset },
+    };
+  };
+
+  const onMouseMove = (e) => {
+    if (syncZoomOn || !panning) return;
+    const dx = e.clientX - panRef.current.startX;
+    const dy = e.clientY - panRef.current.startY;
+    setOffset({
+      x: panRef.current.startOffset.x + dx,
+      y: panRef.current.startOffset.y + dy,
+    });
+  };
+
+  const endPan = () => setPanning(false);
+  const onDoubleClick = () => { if (!syncZoomOn) resetPanZoom(); };
+
+  // ----- Synchronized zoom handlers -----
+  const onSyncEnter = () => { if (syncZoomOn) setIsHoveringSync(true); };
+  const onSyncLeave = () => { setIsHoveringSync(false); };
+  const onSyncMove = (e) => {
+    if (!syncZoomOn) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const nx = (e.clientX - rect.left) / rect.width;
+    const ny = (e.clientY - rect.top) / rect.height;
+    setHoverNorm({ x: Math.min(1, Math.max(0, nx)), y: Math.min(1, Math.max(0, ny)) });
+  };
+
+  const currentFrameHandlers = syncZoomOn
+    ? { onMouseEnter: onSyncEnter, onMouseLeave: onSyncLeave, onMouseMove: onSyncMove }
+    : { onWheel: onWheelZoom, onMouseDown, onMouseMove, onMouseUp: endPan, onMouseLeave: endPan, onDoubleClick };
+
+  const baselineFrameHandlers = { onMouseEnter: onSyncEnter, onMouseLeave: onSyncLeave, onMouseMove: onSyncMove };
+
+  const syncZoomStyle = (enabled) =>
+    enabled && isHoveringSync
+      ? {
+          transformOrigin: `${hoverNorm.x * 100}% ${hoverNorm.y * 100}%`,
+          transform: `scale(${SYNC_ZOOM_SCALE})`,
+          transition: "transform 80ms ease-out",
+        }
+      : { transform: "scale(1)", transition: "transform 120ms ease-out" };
+
+  // Reusable meta overlay
+  const MetaOverlay = ({ text, dark = true }) => (
+    <>
+      <div
+        style={{
+          position: "absolute",
+          left: 0, right: 0, bottom: 0,
+          height: 42,
+          background: "linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0))",
+          zIndex: 3,
+          pointerEvents: "none",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          left: 0, right: 0, bottom: 8,
+          textAlign: "center",
+          fontSize: 12,
+          color: "#fff",
+          textShadow: "0 1px 2px rgba(0,0,0,.6)",
+          zIndex: 4,
+          pointerEvents: "none",
+        }}
+      >
+        {text || "—"}
+      </div>
+    </>
+  );
 
   // ---------- UI ----------
   return (
@@ -232,14 +358,12 @@ export default function UploadPage() {
               />
             </div>
 
-            {/* Uploader (only when idle and no preview) */}
             {showUploader && !uploading && !imageUrl && (
               <div className="mt-3" style={{ maxWidth: 720 }}>
                 <ThermalImageUploader onUpload={uploadToBackend} />
               </div>
             )}
 
-            {/* Progress card — ONLY while actively uploading */}
             {uploading && (
               <div className="mt-4">
                 <div className="p-4 rounded-4 shadow-sm" style={{ background: "white", border: "1px solid #eee" }}>
@@ -274,125 +398,149 @@ export default function UploadPage() {
               </div>
             )}
 
-            {/* Comparison view after success: ENTIRE block inside a single white card */}
             {imageUrl && !uploading && (
               <div className="mt-4">
                 <div
-                  className="p-4 rounded-4 shadow-sm"
+                  className="p-4 rounded-4 shadow-sm position-relative"
                   style={{ background: "#fff", border: "1px solid #eee" }}
                 >
                   <h5 className="mb-4">Thermal Image Comparison</h5>
 
-                  {/* Two equal columns with fixed-height viewports */}
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: 24,
-                    }}
+                  {/* Zoom toggle button */}
+                  <Button
+                    size="sm"
+                    variant={syncZoomOn ? "primary" : "light"}
+                    onClick={() => setSyncZoomOn((v) => !v)}
+                    className="position-absolute top-0 end-0 m-3 d-flex align-items-center gap-1"
+                    aria-pressed={syncZoomOn}
+                    title={syncZoomOn ? "Disable synchronized zoom" : "Enable synchronized zoom"}
                   >
-                    {/* Baseline frame (empty for now) */}
+                    <i className={`bi ${syncZoomOn ? "bi-zoom-out" : "bi-zoom-in"}`} />
+                    Zoom
+                  </Button>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                    {/* Baseline (single frame) */}
                     <div
+                      {...baselineFrameHandlers}
                       style={{
-                        padding: FRAME_PADDING,
-                        borderRadius: FRAME_RADIUS,
-                        background: "#fff",
+                        position: "relative",
+                        width: "100%",
+                        height: PREVIEW_HEIGHT,
                         border: "1px solid #eef0f3",
-                        height: PREVIEW_HEIGHT + FRAME_PADDING * 2,
-                        boxSizing: "border-box",
+                        borderRadius: FRAME_RADIUS,
+                        overflow: "hidden",
+                        cursor: syncZoomOn && isHoveringSync ? "zoom-in" : "default",
+                        background: "#0A2D9C",
                       }}
                     >
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: 12,
+                          left: 12,
+                          padding: "4px 10px",
+                          fontSize: 12,
+                          background: "rgba(108,117,125,0.95)",
+                          color: "#fff",
+                          borderRadius: 999,
+                          zIndex: 2,
+                        }}
+                      >
+                        Baseline
+                      </span>
+
+                      {/* Surface for sync zoom (just the placeholder) */}
                       <div
                         style={{
-                          position: "relative",
-                          width: "100%",
-                          height: PREVIEW_HEIGHT,
-                          background: "#0A2D9C", // keep blue only for empty baseline
-                          borderRadius: 12,
+                          position: "absolute",
+                          inset: 0,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          overflow: "hidden",
+                          ...syncZoomStyle(syncZoomOn),
                         }}
                       >
-                        <span
-                          style={{
-                            position: "absolute",
-                            top: 12,
-                            left: 12,
-                            padding: "4px 10px",
-                            fontSize: 12,
-                            background: "rgba(108,117,125,0.95)",
-                            color: "#fff",
-                            borderRadius: 999,
-                          }}
-                        >
-                          Baseline
-                        </span>
-
                         <div
                           style={{
-                            width: "50%",
-                            height: "50%",
+                            width: "40%",
+                            height: "40%",
                             border: "2px dashed rgba(255,255,255,0.35)",
                             borderRadius: 12,
-                            background: "transparent",
                           }}
                         />
                       </div>
+
+                      {/* Metadata overlay */}
+                      <MetaOverlay text={formatUpload(currentOr(baselineMeta.uploadedAt))} />
                     </div>
 
-                    {/* Current (uploaded) frame */}
+                    {/* Current (single frame) */}
                     <div
+                      {...currentFrameHandlers}
                       style={{
-                        padding: FRAME_PADDING,
-                        borderRadius: FRAME_RADIUS,
-                        background: "#fff",
+                        position: "relative",
+                        width: "100%",
+                        height: PREVIEW_HEIGHT,
                         border: "1px solid #eef0f3",
-                        height: PREVIEW_HEIGHT + FRAME_PADDING * 2,
-                        boxSizing: "border-box",
+                        borderRadius: FRAME_RADIUS,
+                        overflow: "hidden",
+                        cursor: syncZoomOn
+                          ? (isHoveringSync ? "zoom-in" : "default")
+                          : (panning ? "grabbing" : zoom > 1 ? "grab" : "default"),
+                        userSelect: "none",
+                        background: "#fff",
                       }}
+                      title={
+                        syncZoomOn
+                          ? "Move to zoom both images; click Zoom to turn off"
+                          : "Scroll to zoom, drag to pan (when zoomed), double-click to reset"
+                      }
                     >
-                      <div
+                      <span
                         style={{
-                          position: "relative",
-                          width: "100%",
-                          height: PREVIEW_HEIGHT,
-                          // IMPORTANT: no blue background when an image exists
-                          background: imageUrl ? "transparent" : "#0A2D9C",
-                          borderRadius: 12,
-                          overflow: "hidden",
+                          position: "absolute",
+                          top: 12,
+                          left: 12,
+                          padding: "4px 10px",
+                          fontSize: 12,
+                          background: "rgba(59,52,213,0.95)",
+                          color: "#fff",
+                          borderRadius: 999,
+                          zIndex: 2,
                         }}
                       >
-                        <span
-                          style={{
-                            position: "absolute",
-                            top: 12,
-                            left: 12,
-                            padding: "4px 10px",
-                            fontSize: 12,
-                            background: "rgba(59,52,213,0.95)",
-                            color: "#fff",
-                            borderRadius: 999,
-                            zIndex: 1,
-                          }}
-                        >
-                          Current
-                        </span>
+                        Current
+                      </span>
 
-                        {/* Fill the whole viewport and avoid letterboxing */}
+                      {/* Scaled surface with image */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          ...syncZoomStyle(syncZoomOn),
+                        }}
+                      >
                         <img
                           src={imageUrl}
                           alt="Current thermal"
+                          draggable={false}
                           style={{
+                            position: "absolute",
+                            inset: 0,
                             width: "100%",
                             height: "100%",
-                            objectFit: "cover",        // <-- fills the frame (may crop a little)
-                            objectPosition: "center",
-                            display: "block",
+                            objectFit: "contain",
+                            transform: syncZoomOn
+                              ? undefined
+                              : `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+                            transformOrigin: "center center",
                           }}
                         />
                       </div>
+
+                      {/* Metadata overlay */}
+                      <MetaOverlay text={formatUpload(currentOr(currentMeta.uploadedAt))} />
                     </div>
                   </div>
 
@@ -418,7 +566,7 @@ export default function UploadPage() {
   );
 }
 
-/* Pretty date formatter */
+/* Pretty date formatter for header (unchanged) */
 function formatPretty(iso) {
   try {
     const d = new Date(iso);
@@ -433,3 +581,24 @@ function formatPretty(iso) {
     return iso;
   }
 }
+
+/* Compact timestamp for image metadata like 5/7/2025 8:34:21 PM */
+function formatUpload(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("en-US", {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return "—";
+  }
+}
+
+// Helper: if empty/undefined, return empty string to avoid "Invalid Date"
+function currentOr(v) { return v ? v : ""; }
