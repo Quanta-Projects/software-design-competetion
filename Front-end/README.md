@@ -5,7 +5,7 @@ To install the dependencies first need to run
 npm install
 ```
 
-then the deendencies will install then follow the `npm start`
+then the dependencies will install then follow the `npm start`
 
 ## Available Scripts
 
