@@ -2,7 +2,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './layouts/AppLayout';
 import TransformersPage from './pages/TransformersPage';
-import SettingsPage from "./pages/SettingsPage";
+import SettingsPage from "./pages/settingsPage";
 
 export default function App() {
   return (
