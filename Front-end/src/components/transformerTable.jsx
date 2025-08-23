@@ -8,8 +8,9 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav 
 
   const navigate = useNavigate();
 
-  const handleViewClick = (transformerNo) => {
-    navigate('/upload', { state: { transformerNo } });
+  // send the transformer id to /upload
+  const handleViewClick = (transformerId) => {
+    navigate("/upload", { state: { transformerId } });
   };
 
   return (
@@ -52,7 +53,7 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav 
                   type="button" 
                   className="btn btn-primary d-inline-flex align-items-center justify-content-center px-3" 
                   style={{ height: 25 }}
-                  onClick={() => handleViewClick(t.no)}
+                  onClick={() => handleViewClick(t.id)}
                 >
                   View
                 </button>

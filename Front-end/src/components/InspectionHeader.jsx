@@ -1,30 +1,63 @@
-// InspectionHeader.jsx
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, Row, Col, Button, Dropdown, Stack, Badge } from "react-bootstrap";
 
-// If you're using Bootstrap Icons, include the CDN in index.html <head>:
-// <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-
 export default function InspectionHeader({
-  id = "000123589",
-  dateLabel = "Mon(21), May, 2023 12.55pm",
-  lastUpdated = "Mon(21), May, 2023 12.55pm",
+  // existing defaults (used as fallback if JSON missing)
+  id: idProp = "000123589",
+  dateLabel: dateLabelProp = "Mon(21), May, 2023 12.55pm",
+  lastUpdated: lastUpdatedProp = "Mon(21), May, 2023 12.55pm",
   status = { text: "In progress", variant: "success" },
-  transformerNo = "AZ-8370",
-  poleNo = "EN-122-A",
-  branch = "Nugegoda",
+  transformerNo: transformerNoProp = "AZ-8370",
+  poleNo: poleNoProp = "EN-122-A",
+  branch: branchProp = "Nugegoda",
   inspectedBy = "A-110",
-  onBack = () => {},
   onViewBaseline = () => {},
   onDeleteBaseline = () => {},
   onOpenBaseline = () => {},
 }) {
-  
   const navigate = useNavigate();
+  const [rec, setRec] = useState(null);
 
-  const handleBack = () => {
-    navigate('/transformers');
-  };
+  useEffect(() => {
+    // Try singular filename first, then plural as a fallback
+    const load = async () => {
+      let json = null;
+
+      try {
+        let res2 = await fetch("/transformers_with_timestamps.json", { cache: "no-store" });
+        if (res2.ok) json = await res2.json();
+      } catch (_) {}
+
+      if (!json) return; // keep using prop fallbacks
+
+      const obj = Array.isArray(json) ? json[0] : json;
+
+      // Expecting fields like:
+      // { id, no, pole, region, type, createdAt, updatedAt }
+      setRec({
+        id: obj?.id ?? null,
+        transformerNo: obj?.no ?? null,
+        poleNo: obj?.pole ?? null,
+        branch: obj?.region ?? null,
+        createdAt: obj?.createdAt ?? null,
+        updatedAt: obj?.updatedAt ?? null,
+      });
+    };
+
+    load();
+  }, []);
+
+  const handleBack = () => navigate("/transformers");
+
+  // Derive display values (JSON first, then props)
+  const displayId = rec?.id ?? idProp;
+  const displayTransformerNo = rec?.transformerNo ?? transformerNoProp;
+  const displayPoleNo = rec?.poleNo ?? poleNoProp;
+  const displayBranch = rec?.branch ?? branchProp;
+
+  const displayCreated = rec?.createdAt ? formatPretty(rec.createdAt) : dateLabelProp;
+  const displayUpdated = rec?.updatedAt ? formatPretty(rec.updatedAt) : lastUpdatedProp;
 
   return (
     <Card className="border-0 shadow-sm rounded-4 p-3 bg-white">
@@ -45,7 +78,7 @@ export default function InspectionHeader({
         <Col className="d-flex align-items-center">
           <div>
             <div className="d-flex align-items-center">
-              <span className="fw-semibold fs-5 me-2">{id}</span>
+              <span className="fw-semibold fs-5 me-2">{displayId}</span>
               <Dropdown align="end">
                 <Dropdown.Toggle
                   variant="link"
@@ -63,13 +96,13 @@ export default function InspectionHeader({
                 </Dropdown.Menu>
               </Dropdown>
             </div>
-            <small className="text-muted">{dateLabel}</small>
+            <small className="text-muted">{displayCreated}</small>
           </div>
         </Col>
 
         <Col md="auto" className="ms-auto">
           <Stack direction="horizontal" gap={2} className="justify-content-end">
-            <small className="text-muted">Last updated: {lastUpdated}</small>
+            <small className="text-muted">Last updated: {displayUpdated}</small>
             <StatusPill text={status.text} variant={status.variant} />
           </Stack>
         </Col>
@@ -78,16 +111,16 @@ export default function InspectionHeader({
       {/* Bottom row: info chips + Baseline actions */}
       <Row className="align-items-center g-2 mt-3">
         <Col md="auto">
-          <InfoChip value={transformerNo} label="Transformer No" />
+          <InfoChip value={displayTransformerNo} label="Transformer No" />
         </Col>
         <Col md="auto">
-          <InfoChip value={poleNo} label="Pole No" />
+          <InfoChip value={displayPoleNo} label="Pole No" />
         </Col>
         <Col md="auto">
-          <InfoChip value={branch} label="Branch" />
+          <InfoChip value={displayBranch} label="Branch" />
         </Col>
         <Col md="auto">
-          <InfoChip value={inspectedBy} label="Inspected By" />
+          <InfoChip value={"—"} label="Inspected By" />
         </Col>
 
         <Col md="auto" className="ms-auto">
@@ -141,7 +174,6 @@ function InfoChip({ value, label }) {
 }
 
 function StatusPill({ text, variant = "success" }) {
-  // success | warning | secondary etc.
   const map = {
     success: { bg: "bg-success-subtle", fg: "text-success-emphasis" },
     warning: { bg: "bg-warning-subtle", fg: "text-warning-emphasis" },
@@ -157,4 +189,20 @@ function StatusPill({ text, variant = "success" }) {
       {text}
     </Badge>
   );
+}
+
+/* Pretty date like: Mon(21), May, 2023 12.55pm */
+function formatPretty(iso) {
+  try {
+    const d = new Date(iso);
+    const weekday = d.toLocaleString("en-US", { weekday: "short" });      // Mon
+    const day = d.getDate();                                              // 21
+    const month = d.toLocaleString("en-US", { month: "long" });           // May
+    const year = d.getFullYear();                                         // 2023
+    let t = d.toLocaleString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+    t = t.replace(" ", "").replace("AM", "am").replace("PM", "pm").replace(":", "."); // 12.55pm
+    return `${weekday}(${day}), ${month}, ${year} ${t}`;
+  } catch {
+    return iso;
+  }
 }
