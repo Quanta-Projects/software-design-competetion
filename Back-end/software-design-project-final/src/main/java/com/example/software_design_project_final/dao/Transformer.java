@@ -26,13 +26,16 @@ public class Transformer {
     private Integer id;
 
     @Column(nullable = false, unique = true)
-    private String name;
+    private String transformer_no;
 
     @Column(nullable = false)
     private String location;
 
     @Column(nullable = false)
-    private Double capacity; // in MVA or kVA
+    private String region;
+
+    @Column(nullable = false)
+    private String pole_no; // in MVA or kVA
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

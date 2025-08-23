@@ -25,5 +25,5 @@ public class ImageResponse {
     private Image.ImageType imageType;
     private LocalDateTime uploadDate;
     private Integer transformerId;
-    private String transformerName;
+    private String transformer_no;
 }

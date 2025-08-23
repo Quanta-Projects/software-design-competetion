@@ -18,7 +18,7 @@ public interface TransformerRepository extends JpaRepository<Transformer, Intege
     /**
      * Find transformer by name (case-insensitive)
      */
-    Optional<Transformer> findByNameIgnoreCase(String name);
+    Optional<Transformer> findByNameIgnoreCase(String transformer_no);
 
     /**
      * Find transformers by location containing keyword
@@ -28,12 +28,12 @@ public interface TransformerRepository extends JpaRepository<Transformer, Intege
     /**
      * Find transformers with capacity greater than specified value
      */
-    List<Transformer> findByCapacityGreaterThan(Double capacity);
+    List<Transformer> findByCapacityGreaterThan(String pole_no);
 
     /**
      * Check if transformer name already exists
      */
-    boolean existsByNameIgnoreCase(String name);
+    boolean existsByNameIgnoreCase(String transformer_no);
 
     /**
      * Custom query to find transformers with image count

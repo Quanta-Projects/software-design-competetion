@@ -17,9 +17,10 @@ import java.util.List;
 @NoArgsConstructor
 public class TransformerResponse {
     private Integer id;
-    private String name;
+    private String transformer_no;
     private String location;
-    private Double capacity;
+    private String pole_no;
+    private String region;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<ImageResponse> images;

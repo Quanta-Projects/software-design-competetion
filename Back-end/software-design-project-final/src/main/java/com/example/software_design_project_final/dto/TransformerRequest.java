@@ -17,13 +17,15 @@ import lombok.Setter;
 @NoArgsConstructor
 public class TransformerRequest {
 
-    @NotBlank(message = "Transformer name is required")
-    private String name;
+    @NotBlank(message = "Transformer Number is required")
+    private String transformer_no;
 
     @NotBlank(message = "Location is required")
     private String location;
 
-    @NotNull(message = "Capacity is required")
-    @Positive(message = "Capacity must be positive")
-    private Double capacity;
+    @NotNull(message = "Pole Number is required")
+    private String pole_no;
+
+    @NotBlank(message = "Region need to be selected")
+    private String region;
 }
