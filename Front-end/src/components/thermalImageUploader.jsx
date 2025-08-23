@@ -3,22 +3,49 @@ import { Card, Form, Button } from "react-bootstrap";
 
 export default function ThermalImageUploader({ onUpload }) {
   const fileRef = useRef(null);
-  const [condition, setCondition] = useState("sunny");
+  const [envCondition, setEnvCondition] = useState("SUNNY");
+  const [imageType, setImageType] = useState("BASELINE");
   const [fileName, setFileName] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   const pickFile = () => fileRef.current?.click();
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    // Check file size (10MB limit to match backend)
+    const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+    if (file.size > maxSize) {
+      alert(`File size too large. Maximum allowed size is 10MB. Your file is ${Math.round(file.size / (1024 * 1024))}MB.`);
+      return;
+    }
+    
+    // Check file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Invalid file type. Please select an image file (JPEG, PNG, GIF, BMP, WEBP).');
+      return;
+    }
+    
     setFileName(file.name);
 
     // If you want to actually upload here:
     if (onUpload) {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("condition", condition);
-      await onUpload(fd, { file, condition });
+      try {
+        setUploading(true);
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("envCondition", envCondition);
+        fd.append("imageType", imageType);
+        await onUpload(fd);
+        setFileName(""); // Reset after successful upload
+        fileRef.current.value = ""; // Reset file input
+      } catch (error) {
+        alert("Upload failed: " + error.message);
+      } finally {
+        setUploading(false);
+      }
     }
   };
 
@@ -30,15 +57,27 @@ export default function ThermalImageUploader({ onUpload }) {
       </p>
 
       <Form.Group className="mb-3">
-        <Form.Label className="fw-medium">Weather Condition</Form.Label>
+        <Form.Label className="fw-medium">Environmental Condition</Form.Label>
         <Form.Select
           className="pill-input"
-          value={condition}
-          onChange={(e) => setCondition(e.target.value)}
+          value={envCondition}
+          onChange={(e) => setEnvCondition(e.target.value)}
         >
-          <option value="sunny">Sunny</option>
-          <option value="cloudy">Cloudy</option>
-          <option value="rainy">Rainy</option>
+          <option value="SUNNY">Sunny</option>
+          <option value="CLOUDY">Cloudy</option>
+          <option value="RAINY">Rainy</option>
+        </Form.Select>
+      </Form.Group>
+
+      <Form.Group className="mb-3">
+        <Form.Label className="fw-medium">Image Type</Form.Label>
+        <Form.Select
+          className="pill-input"
+          value={imageType}
+          onChange={(e) => setImageType(e.target.value)}
+        >
+          <option value="BASELINE">Baseline</option>
+          <option value="MAINTENANCE">Maintenance</option>
         </Form.Select>
       </Form.Group>
 
@@ -51,8 +90,13 @@ export default function ThermalImageUploader({ onUpload }) {
         onChange={handleFile}
       />
 
-      <Button size="lg" className="w-100 rounded-4 btn-deep" onClick={pickFile}>
-        Upload thermal Image
+      <Button 
+        size="lg" 
+        className="w-100 rounded-4 btn-deep" 
+        onClick={pickFile}
+        disabled={uploading}
+      >
+        {uploading ? "Uploading..." : "Upload Thermal Image"}
       </Button>
 
       {fileName && (

@@ -1,5 +1,6 @@
 package com.example.software_design_project_final.dao;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -24,7 +25,9 @@ public class Image {
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "transformer_id", nullable = false)
+    @JoinColumn(name = "transformer_id", nullable = false, 
+                foreignKey = @ForeignKey(name = "FK_image_transformer"))
+    @JsonBackReference
     private Transformer transformer;
 
     @Column(name = "file_name", nullable = false)

@@ -1,5 +1,6 @@
 package com.example.software_design_project_final.dao;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -25,14 +26,22 @@ public class Transformer {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(nullable = false, unique = true)
-    private String name;
+    @Column(name = "transformerNo", nullable = false)
+    private String transformerNo;
 
-    @Column(nullable = false)
+    @Column(name = "location", nullable = false)
     private String location;
 
-    @Column(nullable = false)
-    private Double capacity; // in MVA or kVA
+    @Enumerated(EnumType.STRING)
+    @Column(name = "region", nullable = false)
+    private Region region;
+
+    @Column(name = "pole_no", nullable = false) // in MVA or kVA
+    private String pole_no;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "transformer_type", nullable = false)
+    private TransformerType transformerType;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -40,7 +49,8 @@ public class Transformer {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    @OneToMany(mappedBy = "transformer", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "transformer", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    @JsonManagedReference
     private List<Image> images = new ArrayList<>();
 
     @PrePersist
@@ -52,5 +62,19 @@ public class Transformer {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * Predefined regions enum
+     */
+    public enum Region {
+        NUGEGODA, MAHARAGAMA, KOTTE, DEHIWALA, RAJAGIRIYA, NAWALA, BATTARAMULLA, PELAWATTE, BORALESGAMUWA;
+    }
+
+    /**
+     * Transformer types enum
+     */
+    public enum TransformerType {
+        BULK, DISTRIBUTION;
     }
 }

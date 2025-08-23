@@ -54,8 +54,8 @@ public class TransformerService {
      */
     public TransformerResponse addTransformer(TransformerRequest request) {
         // Check for duplicate name
-        if (transformerRepository.existsByNameIgnoreCase(request.getName())) {
-            throw new DuplicateResourceException("Transformer with name '" + request.getName() + "' already exists");
+        if (transformerRepository.existsByTransformerNoIgnoreCase(request.getTransformerNo())) {
+            throw new DuplicateResourceException("Transformer with name '" + request.getTransformerNo() + "' already exists");
         }
 
         Transformer transformer = mapper.map(request, Transformer.class);
@@ -71,14 +71,14 @@ public class TransformerService {
                 .orElseThrow(() -> new ResourceNotFoundException("Transformer not found with id: " + id));
 
         // Check for duplicate name (excluding current transformer)
-        if (!existingTransformer.getName().equalsIgnoreCase(request.getName()) &&
-                transformerRepository.existsByNameIgnoreCase(request.getName())) {
-            throw new DuplicateResourceException("Transformer with name '" + request.getName() + "' already exists");
+        if (!existingTransformer.getTransformerNo().equalsIgnoreCase(request.getTransformerNo()) &&
+                transformerRepository.existsByTransformerNoIgnoreCase(request.getTransformerNo())) {
+            throw new DuplicateResourceException("Transformer with name '" + request.getTransformerNo() + "' already exists");
         }
 
-        existingTransformer.setName(request.getName());
+        existingTransformer.setTransformerNo(request.getTransformerNo());
         existingTransformer.setLocation(request.getLocation());
-        existingTransformer.setCapacity(request.getCapacity());
+        existingTransformer.setPole_no(request.getPole_no());
 
         Transformer updatedTransformer = transformerRepository.save(existingTransformer);
         return convertToResponse(updatedTransformer);
@@ -116,7 +116,7 @@ public class TransformerService {
                     .map(image -> {
                         ImageResponse imageResponse = mapper.map(image, ImageResponse.class);
                         imageResponse.setTransformerId(transformer.getId());
-                        imageResponse.setTransformerName(transformer.getName());
+                        imageResponse.setTransformerNo(transformer.getTransformerNo());
                         return imageResponse;
                     })
                     .collect(Collectors.toList());

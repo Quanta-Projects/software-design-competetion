@@ -1,5 +1,6 @@
 package com.example.software_design_project_final.controller;
 
+import com.example.software_design_project_final.dao.Transformer;
 import com.example.software_design_project_final.dto.TransformerRequest;
 import com.example.software_design_project_final.dto.TransformerResponse;
 import com.example.software_design_project_final.service.TransformerService;
@@ -9,7 +10,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * REST Controller for Transformer operations
@@ -17,6 +20,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/transformers")
+@CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:3000"})
 public class TransformerController {
 
     @Autowired
@@ -81,5 +85,29 @@ public class TransformerController {
     public ResponseEntity<List<TransformerResponse>> searchTransformersByLocation(@RequestParam String location) {
         List<TransformerResponse> transformers = transformerService.searchByLocation(location);
         return ResponseEntity.ok(transformers);
+    }
+
+    /**
+     * Get available regions for dropdown
+     * GET /api/transformers/regions
+     */
+    @GetMapping("/regions")
+    public ResponseEntity<List<String>> getAvailableRegions() {
+        List<String> regions = Arrays.stream(Transformer.Region.values())
+                .map(Transformer.Region::name)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(regions);
+    }
+
+    /**
+     * Get available transformer types for dropdown
+     * GET /api/transformers/types
+     */
+    @GetMapping("/types")
+    public ResponseEntity<List<String>> getAvailableTypes() {
+        List<String> types = Arrays.stream(Transformer.TransformerType.values())
+                .map(Transformer.TransformerType::name)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(types);
     }
 }
