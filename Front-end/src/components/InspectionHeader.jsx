@@ -1,63 +1,76 @@
-import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, Row, Col, Button, Dropdown, Stack, Badge } from "react-bootstrap";
+import { getApiUrl } from "../utils/config";
 
 export default function InspectionHeader({
-  // existing defaults (used as fallback if JSON missing)
-  id: idProp = "000123589",
-  dateLabel: dateLabelProp = "Mon(21), May, 2023 12.55pm",
-  lastUpdated: lastUpdatedProp = "Mon(21), May, 2023 12.55pm",
+  // Props from parent component (uploadPage.jsx)
+  id,
+  dateLabel = "—",
+  lastUpdated = "—",
   status = { text: "In progress", variant: "success" },
-  transformerNo: transformerNoProp = "AZ-8370",
-  poleNo: poleNoProp = "EN-122-A",
-  branch: branchProp = "Nugegoda",
+  transformerNo = "—",
+  poleNo = "—", 
+  branch = "—",
   inspectedBy = "A-110",
   onViewBaseline = () => {},
   onDeleteBaseline = () => {},
   onOpenBaseline = () => {},
 }) {
   const navigate = useNavigate();
-  const [rec, setRec] = useState(null);
-
-  useEffect(() => {
-    // Try singular filename first, then plural as a fallback
-    const load = async () => {
-      let json = null;
-
-      try {
-        let res2 = await fetch("/transformers_with_timestamps.json", { cache: "no-store" });
-        if (res2.ok) json = await res2.json();
-      } catch (_) {}
-
-      if (!json) return; // keep using prop fallbacks
-
-      const obj = Array.isArray(json) ? json[0] : json;
-
-      // Expecting fields like:
-      // { id, no, pole, region, type, createdAt, updatedAt }
-      setRec({
-        id: obj?.id ?? null,
-        transformerNo: obj?.no ?? null,
-        poleNo: obj?.pole ?? null,
-        branch: obj?.region ?? null,
-        createdAt: obj?.createdAt ?? null,
-        updatedAt: obj?.updatedAt ?? null,
-      });
-    };
-
-    load();
-  }, []);
 
   const handleBack = () => navigate("/transformers");
 
-  // Derive display values (JSON first, then props)
-  const displayId = rec?.id ?? idProp;
-  const displayTransformerNo = rec?.transformerNo ?? transformerNoProp;
-  const displayPoleNo = rec?.poleNo ?? poleNoProp;
-  const displayBranch = rec?.branch ?? branchProp;
+  const handleRename = async () => {
+    const newName = prompt("Enter new transformer number:", transformerNo);
+    if (newName && newName.trim() && newName !== transformerNo) {
+      try {
+        const response = await fetch(getApiUrl(`transformers/${id}`), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            transformerNo: newName.trim(),
+            // Keep other fields the same - you'd need to pass more props if you want to update them
+          }),
+        });
 
-  const displayCreated = rec?.createdAt ? formatPretty(rec.createdAt) : dateLabelProp;
-  const displayUpdated = rec?.updatedAt ? formatPretty(rec.updatedAt) : lastUpdatedProp;
+        if (response.ok) {
+          alert('Transformer renamed successfully!');
+          // Optionally refresh the page or update the UI
+          window.location.reload();
+        } else {
+          throw new Error(`Failed to rename: ${response.status}`);
+        }
+      } catch (error) {
+        alert('Error renaming transformer: ' + error.message);
+      }
+    }
+  };
+
+  const handleDuplicate = () => {
+    // For now, just show a message - this would require backend support
+    alert('Duplicate functionality coming soon!');
+  };
+
+  const handleDelete = async () => {
+    if (window.confirm(`Are you sure you want to delete transformer ${transformerNo}? This action cannot be undone.`)) {
+      try {
+        const response = await fetch(getApiUrl(`transformers/${id}`), {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          alert('Transformer deleted successfully!');
+          navigate("/transformers");
+        } else {
+          throw new Error(`Failed to delete: ${response.status}`);
+        }
+      } catch (error) {
+        alert('Error deleting transformer: ' + error.message);
+      }
+    }
+  };
 
   return (
     <Card className="border-0 shadow-sm rounded-4 p-3 bg-white">
@@ -69,7 +82,7 @@ export default function InspectionHeader({
             variant="light"
             className="rounded-circle p-0 d-flex align-items-center justify-content-center back-btn"
             style={{ width: 40, height: 40 }}
-            aria-label="Back"
+            aria-label="Back to transformers"
           >
             <i className="bi bi-chevron-left fs-5" />
           </Button>
@@ -78,7 +91,7 @@ export default function InspectionHeader({
         <Col className="d-flex align-items-center">
           <div>
             <div className="d-flex align-items-center">
-              <span className="fw-semibold fs-5 me-2">{displayId}</span>
+              <span className="fw-semibold fs-5 me-2">{transformerNo || "—"}</span>
               <Dropdown align="end">
                 <Dropdown.Toggle
                   variant="link"
@@ -89,20 +102,29 @@ export default function InspectionHeader({
                   <i className="bi bi-three-dots-vertical" />
                 </Dropdown.Toggle>
                 <Dropdown.Menu>
-                  <Dropdown.Item>Rename</Dropdown.Item>
-                  <Dropdown.Item>Duplicate</Dropdown.Item>
+                  <Dropdown.Item onClick={handleRename}>
+                    <i className="bi bi-pencil me-2" />
+                    Rename
+                  </Dropdown.Item>
+                  <Dropdown.Item onClick={handleDuplicate}>
+                    <i className="bi bi-copy me-2" />
+                    Duplicate
+                  </Dropdown.Item>
                   <Dropdown.Divider />
-                  <Dropdown.Item className="text-danger">Delete</Dropdown.Item>
+                  <Dropdown.Item className="text-danger" onClick={handleDelete}>
+                    <i className="bi bi-trash me-2" />
+                    Delete
+                  </Dropdown.Item>
                 </Dropdown.Menu>
               </Dropdown>
             </div>
-            <small className="text-muted">{displayCreated}</small>
+            <small className="text-muted">{dateLabel}</small>
           </div>
         </Col>
 
         <Col md="auto" className="ms-auto">
           <Stack direction="horizontal" gap={2} className="justify-content-end">
-            <small className="text-muted">Last updated: {displayUpdated}</small>
+            <small className="text-muted">Last updated: {lastUpdated}</small>
             <StatusPill text={status.text} variant={status.variant} />
           </Stack>
         </Col>
@@ -111,16 +133,16 @@ export default function InspectionHeader({
       {/* Bottom row: info chips + Baseline actions */}
       <Row className="align-items-center g-2 mt-3">
         <Col md="auto">
-          <InfoChip value={displayTransformerNo} label="Transformer No" />
+          <InfoChip value={transformerNo} label="Transformer No" />
         </Col>
         <Col md="auto">
-          <InfoChip value={displayPoleNo} label="Pole No" />
+          <InfoChip value={poleNo} label="Pole No" />
         </Col>
         <Col md="auto">
-          <InfoChip value={displayBranch} label="Branch" />
+          <InfoChip value={branch} label="Region" />
         </Col>
         <Col md="auto">
-          <InfoChip value={"—"} label="Inspected By" />
+          <InfoChip value={inspectedBy} label="Inspected By" />
         </Col>
 
         <Col md="auto" className="ms-auto">
@@ -129,6 +151,7 @@ export default function InspectionHeader({
               variant="light"
               className="rounded-4 d-flex align-items-center soft-chip"
               onClick={onOpenBaseline}
+              title="Open baseline image"
             >
               <i className="bi bi-image me-2" />
               <span>Baseline Image</span>
@@ -139,7 +162,8 @@ export default function InspectionHeader({
               className="rounded-circle p-0 d-flex align-items-center justify-content-center soft-icon"
               style={{ width: 40, height: 40 }}
               onClick={onViewBaseline}
-              aria-label="View"
+              aria-label="View baseline image"
+              title="View baseline image"
             >
               <i className="bi bi-eye" />
             </Button>
@@ -149,7 +173,8 @@ export default function InspectionHeader({
               className="rounded-circle p-0 d-flex align-items-center justify-content-center soft-icon text-danger"
               style={{ width: 40, height: 40 }}
               onClick={onDeleteBaseline}
-              aria-label="Delete"
+              aria-label="Delete baseline image"
+              title="Delete baseline image"
             >
               <i className="bi bi-trash" />
             </Button>
@@ -163,9 +188,14 @@ export default function InspectionHeader({
 /* ===== Helper subcomponents ===== */
 
 function InfoChip({ value, label }) {
+  // Handle empty or null values gracefully
+  const displayValue = value && value !== "null" && value !== "undefined" ? value : "—";
+  
   return (
     <div className="px-3 py-2 rounded-4 soft-chip">
-      <div className="fw-semibold">{value}</div>
+      <div className="fw-semibold" title={`${label}: ${displayValue}`}>
+        {displayValue}
+      </div>
       <div className="text-muted" style={{ fontSize: 12 }}>
         {label}
       </div>
@@ -174,18 +204,39 @@ function InfoChip({ value, label }) {
 }
 
 function StatusPill({ text, variant = "success" }) {
-  const map = {
-    success: { bg: "bg-success-subtle", fg: "text-success-emphasis" },
-    warning: { bg: "bg-warning-subtle", fg: "text-warning-emphasis" },
-    secondary: { bg: "bg-secondary-subtle", fg: "text-secondary-emphasis" },
-    info: { bg: "bg-info-subtle", fg: "text-info-emphasis" },
-    danger: { bg: "bg-danger-subtle", fg: "text-danger-emphasis" },
+  const statusConfig = {
+    success: { 
+      bg: "bg-success-subtle", 
+      fg: "text-success-emphasis", 
+      icon: "bi-check-circle" 
+    },
+    warning: { 
+      bg: "bg-warning-subtle", 
+      fg: "text-warning-emphasis", 
+      icon: "bi-exclamation-triangle" 
+    },
+    secondary: { 
+      bg: "bg-secondary-subtle", 
+      fg: "text-secondary-emphasis", 
+      icon: "bi-clock" 
+    },
+    info: { 
+      bg: "bg-info-subtle", 
+      fg: "text-info-emphasis", 
+      icon: "bi-info-circle" 
+    },
+    danger: { 
+      bg: "bg-danger-subtle", 
+      fg: "text-danger-emphasis", 
+      icon: "bi-x-circle" 
+    },
   };
-  const c = map[variant] || map.success;
+  
+  const config = statusConfig[variant] || statusConfig.success;
 
   return (
-    <Badge className={`px-3 py-2 rounded-pill ${c.bg} ${c.fg} fw-medium`}>
-      <i className="bi bi-check-circle me-2" />
+    <Badge className={`px-3 py-2 rounded-pill ${config.bg} ${config.fg} fw-medium`}>
+      <i className={`bi ${config.icon} me-2`} />
       {text}
     </Badge>
   );

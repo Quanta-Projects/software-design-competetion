@@ -1,5 +1,6 @@
 package com.example.software_design_project_final.dto;
 
+import com.example.software_design_project_final.dao.Transformer;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,9 +18,11 @@ import java.util.List;
 @NoArgsConstructor
 public class TransformerResponse {
     private Integer id;
-    private String name;
+    private String transformerNo;
     private String location;
-    private Double capacity;
+    private String pole_no;
+    private Transformer.Region region;
+    private Transformer.TransformerType transformerType;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<ImageResponse> images;

@@ -1,9 +1,10 @@
 // src/pages/uploadPage.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Container, Button, Offcanvas, Alert } from "react-bootstrap";
+import { Container, Button, Offcanvas, Alert, Row, Col, Card, Badge } from "react-bootstrap";
 import InspectionHeader from "../components/InspectionHeader";
 import ThermalImageUploader from "../components/thermalImageUploader";
+import { getApiUrl, getImageUrl } from "../utils/config";
 
 const JSON_CANDIDATES = ["/data/transformers_with_timestamps.json", "/data/transformers.json"];
 const API_BASE = import.meta?.env?.VITE_API_URL ?? "";
@@ -21,8 +22,10 @@ export default function UploadPage() {
   const transformerId = location.state?.transformerId;
 
   const [record, setRecord] = useState(null);
+  const [images, setImages] = useState([]);
   const [error, setError] = useState(null);
   const [showMenu, setShowMenu] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Upload UI
   const [uploading, setUploading] = useState(false);
@@ -81,6 +84,54 @@ export default function UploadPage() {
         if (on) setError(e.message || String(e));
       }
     })();
+
+    const loadTransformerAndImages = async () => {
+      if (!transformerId) {
+        setError("No transformer selected.");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setError(null);
+        setLoading(true);
+
+        // Fetch transformer data and images in parallel
+        const [transformerRes, imagesRes] = await Promise.all([
+          fetch(getApiUrl(`transformers/${transformerId}`)),
+          fetch(getApiUrl(`images/transformer/${transformerId}`))
+        ]);
+
+        if (!transformerRes.ok) {
+          throw new Error(`Failed to load transformer: ${transformerRes.status}`);
+        }
+
+        if (!imagesRes.ok) {
+          throw new Error(`Failed to load images: ${imagesRes.status}`);
+        }
+
+        const [transformerData, imagesData] = await Promise.all([
+          transformerRes.json(),
+          imagesRes.json()
+        ]);
+
+        if (isMounted) {
+          setRecord(transformerData);
+          setImages(imagesData);
+        }
+      } catch (e) {
+        if (isMounted) {
+          setError(e.message || String(e));
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadTransformerAndImages();
+    
     return () => {
       on = false;
       clearInterval(simTimerRef.current);
@@ -224,6 +275,113 @@ export default function UploadPage() {
       resetPanZoom();
     } catch (err) {
       resetToUploader(err.message || "Upload error");
+       }
+  };
+
+  const uploadToBackend = async (formData) => {
+    try {
+      // Add transformer ID to the form data
+      if (transformerId) {
+        formData.append("transformerId", transformerId);
+      }
+      
+      // Add default values for required fields if not present
+      if (!formData.has("envCondition")) {
+        formData.append("envCondition", "SUNNY");
+      }
+      if (!formData.has("imageType")) {
+        formData.append("imageType", "BASELINE");
+      }
+
+      const res = await fetch(getApiUrl("images/upload"), {
+        method: "POST",
+        body: formData,
+      });
+      
+      if (!res.ok) {
+        let errorMessage = `Upload failed (${res.status})`;
+        try {
+          const errorText = await res.text();
+          if (errorText) {
+            errorMessage += `: ${errorText}`;
+          }
+        } catch (e) {
+          // If we can't read the error text, use the status message
+          errorMessage += `: ${res.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+      
+      // Refresh images after successful upload
+      const imagesRes = await fetch(getApiUrl(`images/transformer/${transformerId}`));
+      if (imagesRes.ok) {
+        const newImages = await imagesRes.json();
+        setImages(newImages);
+      }
+      
+      return res.json();
+    } catch (error) {
+      console.error("Upload error:", error);
+      throw error;
+    }
+  };
+
+  const handleImageDelete = async (imageId) => {
+    if (!window.confirm("Are you sure you want to delete this image?")) {
+      return;
+    }
+    
+    try {
+      const res = await fetch(getApiUrl(`images/${imageId}`), {
+        method: "DELETE",
+      });
+      
+      if (res.ok) {
+        setImages(prev => prev.filter(img => img.id !== imageId));
+      } else {
+        throw new Error(`Failed to delete image: ${res.status}`);
+      }
+    } catch (error) {
+      alert("Error deleting image: " + error.message);
+    }
+  };
+
+  // Baseline image handlers
+  const handleViewBaseline = () => {
+    const baselineImage = images.find(img => img.imageType === 'BASELINE');
+    if (baselineImage) {
+      window.open(getImageUrl(baselineImage.filePath), '_blank');
+    } else {
+      alert('No baseline image found for this transformer.');
+    }
+  };
+
+  const handleDeleteBaseline = async () => {
+    const baselineImage = images.find(img => img.imageType === 'BASELINE');
+    if (!baselineImage) {
+      alert('No baseline image found for this transformer.');
+      return;
+    }
+    
+    if (window.confirm("Are you sure you want to delete the baseline image?")) {
+      await handleImageDelete(baselineImage.id);
+    }
+  };
+
+  const handleOpenBaseline = () => {
+    const baselineImage = images.find(img => img.imageType === 'BASELINE');
+    if (baselineImage) {
+      // Scroll to the baseline image in the gallery
+      const baselineElement = document.getElementById(`image-${baselineImage.id}`);
+      if (baselineElement) {
+        baselineElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        baselineElement.style.border = '2px solid #007bff';
+        setTimeout(() => {
+          baselineElement.style.border = '';
+        }, 3000);
+      }
+    } else {
+      alert('No baseline image found. Please upload a baseline image first.');
     }
   };
 
@@ -340,7 +498,11 @@ export default function UploadPage() {
         </Container>
       </div>
 
+
       <Container style={{ maxWidth: PREVIEW_MAX_WIDTH }}>
+
+        {loading && <Alert variant="info" className="mt-3">Loading transformer data...</Alert>}
+
         {error && <Alert variant="danger" className="mt-3">{error}</Alert>}
 
         {record && (
@@ -350,8 +512,8 @@ export default function UploadPage() {
                 id={record.id}
                 dateLabel={createdPretty}
                 lastUpdated={updatedPretty}
-                transformerNo={record.no}
-                poleNo={record.pole}
+                transformerNo={record.transformerNo}
+                poleNo={record.pole_no}
                 branch={record.region}
                 inspectedBy={"A-110"}
                 status={{ text: uploading ? "Uploading…" : "In progress", variant: "success" }}

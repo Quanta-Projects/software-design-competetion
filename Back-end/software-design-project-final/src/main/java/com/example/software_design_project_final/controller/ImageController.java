@@ -28,6 +28,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/images")
+@CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:3000"})
 public class ImageController {
 
     @Autowired
@@ -105,10 +106,31 @@ public class ImageController {
             Resource resource = new UrlResource(filePath.toUri());
 
             if (resource.exists()) {
-                return ResponseEntity.ok()
+                // Determine content type based on file extension
+                String contentType = "application/octet-stream";
+                String fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+                switch (fileExtension) {
+                    case "jpg":
+                    case "jpeg":
+                        contentType = "image/jpeg";
+                        break;
+                    case "png":
+                        contentType = "image/png";
+                        break;
+                    case "gif":
+                        contentType = "image/gif";
+                        break;
+                    case "bmp":
+                        contentType = "image/bmp";
+                        break;
+                    case "webp":
+                        contentType = "image/webp";
+                        break;
+                }
 
-                        .contentType(MediaType.parseMediaType("application/octet-stream"))
-                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"")
+                return ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(contentType))
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
                         .body(resource);
             } else {
                 throw new ResourceNotFoundException("File not found: " + fileName);

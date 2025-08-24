@@ -203,7 +203,7 @@ public class ImageService {
     private ImageResponse convertToResponse(Image image) {
         ImageResponse response = mapper.map(image, ImageResponse.class);
         response.setTransformerId(image.getTransformer().getId());
-        response.setTransformerName(image.getTransformer().getName());
+        response.setTransformerNo(image.getTransformer().getTransformerNo());
         return response;
     }
 }

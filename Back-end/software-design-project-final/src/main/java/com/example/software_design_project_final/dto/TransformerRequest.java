@@ -1,8 +1,8 @@
 package com.example.software_design_project_final.dto;
 
+import com.example.software_design_project_final.dao.Transformer;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,13 +17,18 @@ import lombok.Setter;
 @NoArgsConstructor
 public class TransformerRequest {
 
-    @NotBlank(message = "Transformer name is required")
-    private String name;
+    @NotBlank(message = "Transformer Number is required")
+    private String transformerNo;
 
     @NotBlank(message = "Location is required")
     private String location;
 
-    @NotNull(message = "Capacity is required")
-    @Positive(message = "Capacity must be positive")
-    private Double capacity;
+    @NotBlank(message = "Pole Number is required")
+    private String pole_no;
+
+    @NotNull(message = "Region must be selected")
+    private Transformer.Region region;
+
+    @NotNull(message = "Transformer Type is required")
+    private Transformer.TransformerType transformerType;
 }
