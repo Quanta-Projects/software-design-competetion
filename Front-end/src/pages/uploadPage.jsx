@@ -5,6 +5,178 @@ import InspectionHeader from "../components/InspectionHeader";
 import ThermalImageUploader from "../components/thermalImageUploader";
 import { getApiUrl, getImageUrl } from "../utils/config";
 
+const PREVIEW_HEIGHT = 420;        // fixed frame height
+const FRAME_RADIUS = 16;
+const SYNC_ZOOM_SCALE = 2.2;       // zoom factor when Zoom mode is ON
+
+/** Fixed-size frame:
+ *  - objectFit: 'contain' (no cropping)
+ *  - Normal mode: wheel zoom + drag pan
+ *  - Zoom mode (from parent): cursor-hover magnifies around pointer
+ *  - Bottom metadata overlay (upload date/time)
+ */
+function PanZoomContainFrame({
+  src,
+  label,
+  metaText = "",
+  badgeColor = "rgba(108,117,125,0.95)",
+  // sync-zoom props from parent
+  syncZoomOn,
+  isHoveringSync,
+  onSyncEnter,
+  onSyncLeave,
+  onSyncMove,
+  syncStyle,
+}) {
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [panning, setPanning] = useState(false);
+  const panRef = useRef({ startX: 0, startY: 0, startOffset: { x: 0, y: 0 } });
+
+  // --- Normal (independent) pan/zoom handlers ---
+  const onWheelZoom = (e) => {
+    if (syncZoomOn) return;
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    setZoom((z) => Math.min(6, Math.max(1, z * factor)));
+  };
+
+  const onMouseDown = (e) => {
+    if (syncZoomOn || zoom <= 1) return;
+    e.preventDefault();
+    setPanning(true);
+    panRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startOffset: { ...offset },
+    };
+  };
+
+  const onMouseMove = (e) => {
+    if (syncZoomOn) { onSyncMove?.(e); return; }
+    if (!panning) return;
+    const dx = e.clientX - panRef.current.startX;
+    const dy = e.clientY - panRef.current.startY;
+    setOffset({
+      x: panRef.current.startOffset.x + dx,
+      y: panRef.current.startOffset.y + dy,
+    });
+  };
+
+  const endPan = () => setPanning(false);
+  const onDoubleClick = () => { if (!syncZoomOn) { setZoom(1); setOffset({ x: 0, y: 0 }); } };
+
+  const frameHandlers = syncZoomOn
+    ? { onMouseEnter: onSyncEnter, onMouseLeave: onSyncLeave, onMouseMove }
+    : { onWheel: onWheelZoom, onMouseDown, onMouseMove, onMouseUp: endPan, onMouseLeave: endPan, onDoubleClick };
+
+  return (
+    <div
+      {...frameHandlers}
+      style={{
+        position: "relative",
+        width: "100%",
+        height: PREVIEW_HEIGHT,
+        border: "1px solid #eef0f3",
+        borderRadius: FRAME_RADIUS,
+        overflow: "hidden",
+        background: "#fff",
+        userSelect: "none",
+        cursor: syncZoomOn
+          ? (isHoveringSync ? "zoom-in" : "default")
+          : (panning ? "grabbing" : zoom > 1 ? "grab" : "default"),
+      }}
+      title={
+        syncZoomOn
+          ? "Move the mouse to zoom around the cursor • Click Zoom to turn off"
+          : "Scroll to zoom, drag to pan (when zoomed), double-click to reset"
+      }
+    >
+      {/* Label pill */}
+      <span
+        style={{
+          position: "absolute",
+          top: 12,
+          left: 12,
+          padding: "4px 10px",
+          fontSize: 12,
+          background: badgeColor,
+          color: "#fff",
+          borderRadius: 999,
+          zIndex: 2,
+        }}
+      >
+        {label}
+      </span>
+
+      {/* Scaled surface containing the image */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          ...(syncStyle || {}),
+        }}
+      >
+        {src ? (
+          <img
+            src={src}
+            alt={label}
+            draggable={false}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              transform: syncZoomOn
+                ? undefined
+                : `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+              transformOrigin: "center center",
+            }}
+          />
+        ) : (
+          <div
+            className="text-muted small"
+            style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            No image
+          </div>
+        )}
+      </div>
+
+      {/* Metadata overlay (bottom-center) */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 42,
+          background: "linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0))",
+          zIndex: 3,
+          pointerEvents: "none",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 8,
+          textAlign: "center",
+          fontSize: 12,
+          color: "#fff",
+          textShadow: "0 1px 2px rgba(0,0,0,.6)",
+          zIndex: 4,
+          pointerEvents: "none",
+        }}
+      >
+        {metaText || "—"}
+      </div>
+    </div>
+  );
+}
+
 export default function UploadPage() {
   const location = useLocation();
   const transformerId = location.state?.transformerId; // sent from table
@@ -20,8 +192,31 @@ export default function UploadPage() {
   const [progress, setProgress] = useState(0);
   const xhrRef = useRef(null);
 
-  // NEW: show preview of just-uploaded image
-  const [previewImage, setPreviewImage] = useState(null); // object returned by backend
+  // Show preview of just-uploaded image (object returned by backend or resolved from refresh)
+  const [previewImage, setPreviewImage] = useState(null);
+
+  // --- Zoom toggle & synchronized hover state (shared by both frames) ---
+  const [syncZoomOn, setSyncZoomOn] = useState(false);
+  const [isHoveringSync, setIsHoveringSync] = useState(false);
+  const [hoverNorm, setHoverNorm] = useState({ x: 0.5, y: 0.5 });
+
+  const onSyncEnter = () => { if (syncZoomOn) setIsHoveringSync(true); };
+  const onSyncLeave = () => { setIsHoveringSync(false); };
+  const onSyncMove = (e) => {
+    if (!syncZoomOn) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const nx = (e.clientX - rect.left) / rect.width;
+    const ny = (e.clientY - rect.top) / rect.height;
+    setHoverNorm({ x: Math.min(1, Math.max(0, nx)), y: Math.min(1, Math.max(0, ny)) });
+  };
+  const syncZoomStyle = (enabled) =>
+    enabled && isHoveringSync
+      ? {
+          transformOrigin: `${hoverNorm.x * 100}% ${hoverNorm.y * 100}%`,
+          transform: `scale(${SYNC_ZOOM_SCALE})`,
+          transition: "transform 80ms ease-out",
+        }
+      : { transform: "scale(1)", transition: "transform 120ms ease-out" };
 
   useEffect(() => {
     let isMounted = true;
@@ -83,12 +278,10 @@ export default function UploadPage() {
   // Upload (fire-and-forget, with real abort using XHR)
   // ---------------------------
   const uploadToBackend = (formData) => {
-    // ensure required fields (same behavior as before)
     if (transformerId && !formData.has("transformerId")) formData.append("transformerId", transformerId);
     if (!formData.has("envCondition")) formData.append("envCondition", "SUNNY");
     if (!formData.has("imageType")) formData.append("imageType", "BASELINE");
 
-    // next tick so the uploader can clear its <input> safely before unmount
     setTimeout(() => {
       setIsUploading(true);
       setProgress(0);
@@ -100,7 +293,6 @@ export default function UploadPage() {
 
       xhr.open("POST", getApiUrl("images/upload"));
 
-      // progress (% at the top-right)
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) {
           const pct = Math.round((e.loaded / e.total) * 100);
@@ -109,22 +301,17 @@ export default function UploadPage() {
       };
 
       xhr.onload = async () => {
-        // stop the bar where it landed
         if (xhr.status >= 200 && xhr.status < 300) {
           setProgress(100);
 
-          // Parse the server's response (try to get the image record)
           let uploaded = null;
           try { uploaded = JSON.parse(xhr.responseText || "{}"); } catch {}
 
-          // Refresh list (so counts are accurate)
           try {
             const imagesRes = await fetch(getApiUrl(`images/transformer/${transformerId}`));
             if (imagesRes.ok) {
               const newImages = await imagesRes.json();
               setImages(newImages);
-              // If server didn't return the full record, fall back to
-              // "latest by created time" from refreshed list.
               if (!uploaded || !uploaded.filePath) {
                 const latest = [...newImages].sort((a, b) => {
                   const ta = new Date(a.uploadDate || a.createdAt || 0).getTime();
@@ -134,22 +321,15 @@ export default function UploadPage() {
                 uploaded = latest || uploaded;
               }
             }
-          } catch {
-            // ignore refresh failure for preview; we still try to show uploaded
-          }
+          } catch {}
 
-          // Show preview
           setPreviewImage(uploaded || null);
         } else {
           let msg = `Upload failed (${xhr.status})`;
-          try {
-            const t = xhr.responseText || "";
-            if (t) msg += `: ${t}`;
-          } catch {}
+          try { const t = xhr.responseText || ""; if (t) msg += `: ${t}`; } catch {}
           alert(msg);
         }
 
-        // Stop progress mode (but we might be in preview)
         setIsUploading(false);
         setProgress(0);
         xhrRef.current = null;
@@ -164,7 +344,6 @@ export default function UploadPage() {
       };
 
       xhr.onabort = () => {
-        // aborted by user → stay canceled; do not refresh list or show preview
         setIsUploading(false);
         setProgress(0);
         xhrRef.current = null;
@@ -173,7 +352,6 @@ export default function UploadPage() {
       xhr.send(formData);
     }, 0);
 
-    // return immediately so the child can clear its input
     return Promise.resolve();
   };
 
@@ -200,7 +378,6 @@ export default function UploadPage() {
     }
   };
 
-  // Baseline image handlers
   const handleViewBaseline = () => {
     const baselineImage = images.find((img) => img.imageType === "BASELINE");
     if (baselineImage) window.open(getImageUrl(baselineImage.filePath), "_blank");
@@ -226,12 +403,38 @@ export default function UploadPage() {
     }
   };
 
-  // helper to resolve the preview URL regardless of server field naming
+  // helpers
   const resolveImageUrl = (img) => {
     if (!img) return "";
     const p = img.filePath || img.path || img.url || img.fileUrl;
     return p ? (String(p).startsWith("http") ? p : getImageUrl(p)) : "";
   };
+
+  const getUploadedAt = (img) =>
+    (img?.uploadDate || img?.createdAt || img?.uploadedAt || img?.timestamp || "") || "";
+
+  const findLatestByType = (type) =>
+    [...images]
+      .filter((i) => i.imageType?.toUpperCase() === type.toUpperCase())
+      .sort((a, b) => {
+        const ta = new Date(getUploadedAt(a) || 0).getTime();
+        const tb = new Date(getUploadedAt(b) || 0).getTime();
+        return tb - ta;
+      })[0] || null;
+
+  // Compute the two preview sources based on uploaded image type
+  const comparisonSources = (() => {
+    if (!previewImage) return { baseline: null, current: null };
+    const type = (previewImage.imageType || "").toUpperCase();
+    if (type === "BASELINE") {
+      return { baseline: previewImage, current: findLatestByType("MAINTENANCE") };
+    }
+    // treat anything else as “current/maintenance”
+    return { baseline: findLatestByType("BASELINE"), current: previewImage };
+  })();
+
+  const baselineMeta = formatUpload(getUploadedAt(comparisonSources.baseline));
+  const currentMeta  = formatUpload(getUploadedAt(comparisonSources.current));
 
   return (
     <div className="page-bg min-vh-100">
@@ -314,30 +517,54 @@ export default function UploadPage() {
               </Card>
             )}
 
-            {/* 2) Preview just-uploaded image */}
+            {/* 2) Thermal Image Comparison preview (NO separate header; title + Zoom inside component) */}
             {!isUploading && previewImage && (
               <Card className="mt-4">
-                <Card.Header className="d-flex justify-content-between align-items-center">
-                  <h5 className="mb-0">Preview</h5>
-                  <Button variant="outline-secondary" size="sm" onClick={handleClosePreview}>
-                    Back to uploads
-                  </Button>
-                </Card.Header>
-                <Card.Body>
-                  <div className="text-muted small mb-3">
-                    {previewImage.fileName || "New image"} •{" "}
-                    {(previewImage.imageType || "—").toString()} •{" "}
-                    {(previewImage.envCondition || "—").toString()}
+                <Card.Body className="position-relative">
+                  {/* Top inline bar inside the preview component */}
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <h5 className="mb-0">Thermal Image Comparison</h5>
+                    <Button
+                      size="sm"
+                      variant={syncZoomOn ? "primary" : "outline-secondary"}
+                      onClick={() => setSyncZoomOn((v) => !v)}
+                      className="d-flex align-items-center gap-1"
+                      aria-pressed={syncZoomOn}
+                      title={syncZoomOn ? "Disable synchronized Zoom" : "Enable synchronized Zoom"}
+                    >
+                      <i className={`bi ${syncZoomOn ? "bi-zoom-out" : "bi-zoom-in"}`} />
+                      Zoom
+                    </Button>
                   </div>
-                  <div className="border rounded p-2 d-flex justify-content-center" style={{ background: "#f8f9fa" }}>
-                    {/* eslint-disable-next-line jsx-a11y/img-redundant-alt */}
-                    <img
-                      src={resolveImageUrl(previewImage)}
-                      alt="Uploaded image preview"
-                      style={{ maxWidth: "100%", maxHeight: 520, objectFit: "contain" }}
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                    <PanZoomContainFrame
+                      src={resolveImageUrl(comparisonSources.baseline)}
+                      label="Baseline"
+                      metaText={baselineMeta}
+                      badgeColor="rgba(108,117,125,0.95)"
+                      syncZoomOn={syncZoomOn}
+                      isHoveringSync={isHoveringSync}
+                      onSyncEnter={onSyncEnter}
+                      onSyncLeave={onSyncLeave}
+                      onSyncMove={onSyncMove}
+                      syncStyle={syncZoomStyle(syncZoomOn)}
+                    />
+                    <PanZoomContainFrame
+                      src={resolveImageUrl(comparisonSources.current)}
+                      label="Current"
+                      metaText={currentMeta}
+                      badgeColor="rgba(59,52,213,0.95)"
+                      syncZoomOn={syncZoomOn}
+                      isHoveringSync={isHoveringSync}
+                      onSyncEnter={onSyncEnter}
+                      onSyncLeave={onSyncLeave}
+                      onSyncMove={onSyncMove}
+                      syncStyle={syncZoomStyle(syncZoomOn)}
                     />
                   </div>
 
+                  {/* Bottom action row with Back to uploads only */}
                   <div className="d-flex justify-content-center mt-3">
                     <Button variant="light" className="px-4" onClick={handleClosePreview}>
                       Back to uploads
@@ -437,18 +664,37 @@ export default function UploadPage() {
   );
 }
 
-/* Same pretty-date formatter used in the header mock */
+/* Pretty date for header (unchanged) */
 function formatPretty(iso) {
   try {
     const d = new Date(iso);
-    const weekday = d.toLocaleString("en-US", { weekday: "short" }); // Mon
-    const day = d.getDate();                                         // 21
-    const month = d.toLocaleString("en-US", { month: "long" });      // May
-    const year = d.getFullYear();                                    // 2023
+    const weekday = d.toLocaleString("en-US", { weekday: "short" });
+    const day = d.getDate();
+    const month = d.toLocaleString("en-US", { month: "long" });
+    const year = d.getFullYear();
     let t = d.toLocaleString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
     t = t.replace(" ", "").replace("AM", "am").replace("PM", "pm").replace(":", ".");
     return `${weekday}(${day}), ${month}, ${year} ${t}`;
   } catch {
     return iso;
+  }
+}
+
+/* Compact timestamp for image metadata like 5/7/2025, 8:34:21 PM */
+function formatUpload(iso) {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("en-US", {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return "—";
   }
 }
