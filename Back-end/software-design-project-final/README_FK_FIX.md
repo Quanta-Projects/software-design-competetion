@@ -45,3 +45,20 @@ If you still face issues, consider:
 - Using `@JsonIgnore` on the `images` field in Transformer to avoid serialization cycles
 - Adding proper transaction management in services
 - Using DTOs instead of direct entity exposure in controllers
+
+
+# Docker deployment
+
+# Build the Docker image
+```bash
+docker build -t demo-deployment . 
+
+# Run the Docker container
+docker tag demo-deployment nidula437/software-design-comp:fixed
+
+# Push the Docker image to the registry
+docker push nidula437/software-design-comp:fixed
+
+```
+
+docker.io/nidula437/software-design-comp:fixed
