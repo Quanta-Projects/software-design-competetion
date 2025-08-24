@@ -38,3 +38,5 @@ build/
 .env.prod
 *.env
 !.env.example
+
+upload/
