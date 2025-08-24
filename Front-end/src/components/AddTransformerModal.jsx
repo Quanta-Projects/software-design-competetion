@@ -6,7 +6,7 @@ export default function AddTransformerModal({
   onClose,
   onSubmit,
   regions = [],
-  types = ["Bulk", "Distribution"],
+  types = ["BULK", "DISTRIBUTION"], // Use enum values directly
   initialData = null, // when set, we're editing
 }) {
   const [form, setForm] = useState({
@@ -17,15 +17,34 @@ export default function AddTransformerModal({
     location: "",
   });
 
+  // Helper function to format enum values for display
+  const formatDisplayName = (enumValue) => {
+    if (!enumValue) return "";
+    // Convert NUGEGODA -> Nugegoda, BULK -> Bulk, etc.
+    return enumValue.charAt(0).toUpperCase() + enumValue.slice(1).toLowerCase();
+  };
+
   // Prefill when editing (or when modal opens)
   useEffect(() => {
     if (show) {
-      setForm({
+      console.log("Modal opening with initialData:", initialData);
+      const newForm = {
         region:   initialData?.region   ?? "",
         no:       initialData?.no       ?? "",
         pole:     initialData?.pole     ?? "",
         type:     initialData?.type     ?? "",
         location: initialData?.location ?? "",
+      };
+      console.log("Setting form to:", newForm);
+      setForm(newForm);
+    } else {
+      // Reset form when modal is closed
+      setForm({
+        region: "",
+        no: "",
+        pole: "",
+        type: "",
+        location: "",
       });
     }
   }, [initialData, show]);
@@ -70,9 +89,9 @@ export default function AddTransformerModal({
                 onChange={handleChange}
                 placeholder="Region"
               >
-                <option value="">Region</option>
+                <option value="">Select Region</option>
                 {regions.map((r) => (
-                  <option key={r} value={r}>{r}</option>
+                  <option key={r} value={r}>{formatDisplayName(r)}</option>
                 ))}
               </Form.Select>
             </Form.Group>
@@ -105,9 +124,9 @@ export default function AddTransformerModal({
                 onChange={handleChange}
                 placeholder="Type"
               >
-                <option value="">Type</option>
+                <option value="">Select Type</option>
                 {types.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                  <option key={t} value={t}>{formatDisplayName(t)}</option>
                 ))}
               </Form.Select>
             </Form.Group>

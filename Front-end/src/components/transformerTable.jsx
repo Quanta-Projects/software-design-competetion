@@ -23,6 +23,13 @@ const KebabToggle = React.forwardRef(({ onClick }, ref) => (
   </button>
 ));
 
+// Helper function to format enum values for display
+const formatDisplayValue = (value) => {
+  if (!value) return "";
+  // Convert NUGEGODA -> Nugegoda, BULK -> Bulk, etc.
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+};
+
 
 export default function TransformerTable({ transformers = [], favs, onToggleFav, onEdit,          // <-- new (optional)
   onDelete,        // <-- new (optional)
@@ -67,8 +74,8 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav,
 
               <td>{t.no}</td>
               <td>{t.pole}</td>
-              <td>{t.region}</td>
-              <td>{t.type}</td>
+              <td>{formatDisplayValue(t.region)}</td>
+              <td>{formatDisplayValue(t.type)}</td>
               {/* Last column: View + 3-dots actions */}
               <td className="text-end">
                 <div className="d-inline-flex align-items-center gap-2">

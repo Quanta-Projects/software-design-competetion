@@ -41,6 +41,8 @@ export default function TransformersPage() {
         ]);
 
         if (!cancelled) {
+          console.log("Fetched transformers:", transformersJson);
+          console.log("Sample transformer:", transformersJson[0]);
           setAllTransformers(transformersJson);
           setRegions(regionsJson);
           setTypes(typesJson);
@@ -82,14 +84,19 @@ export default function TransformersPage() {
   const [editing, setEditing] = useState(null); // holds the row being edited or null
 
   const handleEdit = (row) => {
+    console.log("Original row data:", row);
+    console.log("Row region type:", typeof row.region, row.region);
+    console.log("Row transformerType type:", typeof row.transformerType, row.transformerType);
+    
     // Map backend field names to frontend field names for the modal
     const editData = {
-      region: row.region,
-      no: row.transformerNo,
-      pole: row.pole_no,
-      type: row.transformerType,
-      location: row.location,
+      region: row.region || "",
+      no: row.transformerNo || "",
+      pole: row.pole_no || "",
+      type: row.transformerType || "",
+      location: row.location || "",
     };
+    console.log("Mapped edit data:", editData);
     setEditing({ ...row, ...editData }); // Keep original row data plus mapped fields
     setShowAdd(true);
   };
@@ -115,13 +122,16 @@ export default function TransformersPage() {
   const handleAddSubmit = async (payload) => {
     try {
       // Map frontend field names to backend field names
+      // Ensure enum values are in the correct format (uppercase)
       const transformerData = {
         transformerNo: payload.no,
         location: payload.location,
         pole_no: payload.pole,
-        region: payload.region,
-        transformerType: payload.type
+        region: payload.region, // Should already be in correct enum format
+        transformerType: payload.type // Should already be in correct enum format
       };
+
+      console.log("Sending transformer data to backend:", transformerData);
 
       if (editing) {
         // Update existing transformer

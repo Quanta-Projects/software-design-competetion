@@ -79,6 +79,8 @@ public class TransformerService {
         existingTransformer.setTransformerNo(request.getTransformerNo());
         existingTransformer.setLocation(request.getLocation());
         existingTransformer.setPole_no(request.getPole_no());
+        existingTransformer.setRegion(request.getRegion());
+        existingTransformer.setTransformerType(request.getTransformerType());
 
         Transformer updatedTransformer = transformerRepository.save(existingTransformer);
         return convertToResponse(updatedTransformer);
