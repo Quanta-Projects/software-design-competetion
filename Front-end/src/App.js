@@ -4,7 +4,7 @@ import AppLayout from './layouts/AppLayout';
 import TransformersPage from './pages/TransformersPage';
 import SettingsPage from "./pages/settingsPage";
 import UploadPage from './pages/uploadPage';
-
+import PreviewPage from './pages/previewPage';
 
 export default function App() {
   return (
@@ -15,6 +15,7 @@ export default function App() {
           <Route path="/transformers" element={<TransformersPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/upload" element={<UploadPage />} />
+          <Route path="/preview" element={<PreviewPage />} />
         </Route>
       </Routes>
     </Router>

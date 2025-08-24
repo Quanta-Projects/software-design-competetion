@@ -1,185 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Container, Button, Offcanvas, Alert, Row, Col, Card, Badge } from "react-bootstrap";
 import InspectionHeader from "../components/InspectionHeader";
 import ThermalImageUploader from "../components/thermalImageUploader";
 import { getApiUrl, getImageUrl } from "../utils/config";
 
-const PREVIEW_HEIGHT = 420;        // fixed frame height
-const FRAME_RADIUS = 16;
-const SYNC_ZOOM_SCALE = 2.2;       // zoom factor when Zoom mode is ON
-
-/** Fixed-size frame:
- *  - objectFit: 'contain' (no cropping)
- *  - Normal mode: wheel zoom + drag pan
- *  - Zoom mode (from parent): cursor-hover magnifies around pointer
- *  - Bottom metadata overlay (upload date/time)
- */
-function PanZoomContainFrame({
-  src,
-  label,
-  metaText = "",
-  badgeColor = "rgba(108,117,125,0.95)",
-  // sync-zoom props from parent
-  syncZoomOn,
-  isHoveringSync,
-  onSyncEnter,
-  onSyncLeave,
-  onSyncMove,
-  syncStyle,
-}) {
-  const [zoom, setZoom] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [panning, setPanning] = useState(false);
-  const panRef = useRef({ startX: 0, startY: 0, startOffset: { x: 0, y: 0 } });
-
-  // --- Normal (independent) pan/zoom handlers ---
-  const onWheelZoom = (e) => {
-    if (syncZoomOn) return;
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.1 : 0.9;
-    setZoom((z) => Math.min(6, Math.max(1, z * factor)));
-  };
-
-  const onMouseDown = (e) => {
-    if (syncZoomOn || zoom <= 1) return;
-    e.preventDefault();
-    setPanning(true);
-    panRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      startOffset: { ...offset },
-    };
-  };
-
-  const onMouseMove = (e) => {
-    if (syncZoomOn) { onSyncMove?.(e); return; }
-    if (!panning) return;
-    const dx = e.clientX - panRef.current.startX;
-    const dy = e.clientY - panRef.current.startY;
-    setOffset({
-      x: panRef.current.startOffset.x + dx,
-      y: panRef.current.startOffset.y + dy,
-    });
-  };
-
-  const endPan = () => setPanning(false);
-  const onDoubleClick = () => { if (!syncZoomOn) { setZoom(1); setOffset({ x: 0, y: 0 }); } };
-
-  const frameHandlers = syncZoomOn
-    ? { onMouseEnter: onSyncEnter, onMouseLeave: onSyncLeave, onMouseMove }
-    : { onWheel: onWheelZoom, onMouseDown, onMouseMove, onMouseUp: endPan, onMouseLeave: endPan, onDoubleClick };
-
-  return (
-    <div
-      {...frameHandlers}
-      style={{
-        position: "relative",
-        width: "100%",
-        height: PREVIEW_HEIGHT,
-        border: "1px solid #eef0f3",
-        borderRadius: FRAME_RADIUS,
-        overflow: "hidden",
-        background: "#fff",
-        userSelect: "none",
-        cursor: syncZoomOn
-          ? (isHoveringSync ? "zoom-in" : "default")
-          : (panning ? "grabbing" : zoom > 1 ? "grab" : "default"),
-      }}
-      title={
-        syncZoomOn
-          ? "Move the mouse to zoom around the cursor • Click Zoom to turn off"
-          : "Scroll to zoom, drag to pan (when zoomed), double-click to reset"
-      }
-    >
-      {/* Label pill */}
-      <span
-        style={{
-          position: "absolute",
-          top: 12,
-          left: 12,
-          padding: "4px 10px",
-          fontSize: 12,
-          background: badgeColor,
-          color: "#fff",
-          borderRadius: 999,
-          zIndex: 2,
-        }}
-      >
-        {label}
-      </span>
-
-      {/* Scaled surface containing the image */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          ...(syncStyle || {}),
-        }}
-      >
-        {src ? (
-          <img
-            src={src}
-            alt={label}
-            draggable={false}
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "contain",
-              transform: syncZoomOn
-                ? undefined
-                : `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-              transformOrigin: "center center",
-            }}
-          />
-        ) : (
-          <div
-            className="text-muted small"
-            style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
-          >
-            No image
-          </div>
-        )}
-      </div>
-
-      {/* Metadata overlay (bottom-center) */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: 42,
-          background: "linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0))",
-          zIndex: 3,
-          pointerEvents: "none",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 8,
-          textAlign: "center",
-          fontSize: 12,
-          color: "#fff",
-          textShadow: "0 1px 2px rgba(0,0,0,.6)",
-          zIndex: 4,
-          pointerEvents: "none",
-        }}
-      >
-        {metaText || "—"}
-      </div>
-    </div>
-  );
-}
-
 export default function UploadPage() {
   const location = useLocation();
-  const transformerId = location.state?.transformerId; // sent from table
+  const navigate = useNavigate();
+  const transformerId = location.state?.transformerId;
 
   const [record, setRecord] = useState(null);
   const [images, setImages] = useState([]);
@@ -191,32 +20,6 @@ export default function UploadPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const xhrRef = useRef(null);
-
-  // Show preview of just-uploaded image (object returned by backend or resolved from refresh)
-  const [previewImage, setPreviewImage] = useState(null);
-
-  // --- Zoom toggle & synchronized hover state (shared by both frames) ---
-  const [syncZoomOn, setSyncZoomOn] = useState(false);
-  const [isHoveringSync, setIsHoveringSync] = useState(false);
-  const [hoverNorm, setHoverNorm] = useState({ x: 0.5, y: 0.5 });
-
-  const onSyncEnter = () => { if (syncZoomOn) setIsHoveringSync(true); };
-  const onSyncLeave = () => { setIsHoveringSync(false); };
-  const onSyncMove = (e) => {
-    if (!syncZoomOn) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const nx = (e.clientX - rect.left) / rect.width;
-    const ny = (e.clientY - rect.top) / rect.height;
-    setHoverNorm({ x: Math.min(1, Math.max(0, nx)), y: Math.min(1, Math.max(0, ny)) });
-  };
-  const syncZoomStyle = (enabled) =>
-    enabled && isHoveringSync
-      ? {
-          transformOrigin: `${hoverNorm.x * 100}% ${hoverNorm.y * 100}%`,
-          transform: `scale(${SYNC_ZOOM_SCALE})`,
-          transition: "transform 80ms ease-out",
-        }
-      : { transform: "scale(1)", transition: "transform 120ms ease-out" };
 
   useEffect(() => {
     let isMounted = true;
@@ -240,10 +43,7 @@ export default function UploadPage() {
         if (!transformerRes.ok) throw new Error(`Failed to load transformer: ${transformerRes.status}`);
         if (!imagesRes.ok) throw new Error(`Failed to load images: ${imagesRes.status}`);
 
-        const [transformerData, imagesData] = await Promise.all([
-          transformerRes.json(),
-          imagesRes.json(),
-        ]);
+        const [transformerData, imagesData] = await Promise.all([transformerRes.json(), imagesRes.json()]);
 
         if (isMounted) {
           setRecord(transformerData);
@@ -286,7 +86,6 @@ export default function UploadPage() {
       setIsUploading(true);
       setProgress(0);
       setError(null);
-      setPreviewImage(null); // clear any prior preview
 
       const xhr = new XMLHttpRequest();
       xhrRef.current = xhr;
@@ -323,7 +122,13 @@ export default function UploadPage() {
             }
           } catch {}
 
-          setPreviewImage(uploaded || null);
+          setIsUploading(false);
+          setProgress(0);
+          xhrRef.current = null;
+
+          // go to preview page
+          navigate("/preview", { state: { transformerId, uploadedImage: uploaded } });
+          return;
         } else {
           let msg = `Upload failed (${xhr.status})`;
           try { const t = xhr.responseText || ""; if (t) msg += `: ${t}`; } catch {}
@@ -357,11 +162,6 @@ export default function UploadPage() {
 
   const handleCancelUpload = () => {
     try { xhrRef.current?.abort(); } catch {}
-  };
-
-  // PREVIEW: leave preview and go back to normal page layout
-  const handleClosePreview = () => {
-    setPreviewImage(null);
   };
 
   const handleImageDelete = async (imageId) => {
@@ -403,39 +203,6 @@ export default function UploadPage() {
     }
   };
 
-  // helpers
-  const resolveImageUrl = (img) => {
-    if (!img) return "";
-    const p = img.filePath || img.path || img.url || img.fileUrl;
-    return p ? (String(p).startsWith("http") ? p : getImageUrl(p)) : "";
-  };
-
-  const getUploadedAt = (img) =>
-    (img?.uploadDate || img?.createdAt || img?.uploadedAt || img?.timestamp || "") || "";
-
-  const findLatestByType = (type) =>
-    [...images]
-      .filter((i) => i.imageType?.toUpperCase() === type.toUpperCase())
-      .sort((a, b) => {
-        const ta = new Date(getUploadedAt(a) || 0).getTime();
-        const tb = new Date(getUploadedAt(b) || 0).getTime();
-        return tb - ta;
-      })[0] || null;
-
-  // Compute the two preview sources based on uploaded image type
-  const comparisonSources = (() => {
-    if (!previewImage) return { baseline: null, current: null };
-    const type = (previewImage.imageType || "").toUpperCase();
-    if (type === "BASELINE") {
-      return { baseline: previewImage, current: findLatestByType("MAINTENANCE") };
-    }
-    // treat anything else as “current/maintenance”
-    return { baseline: findLatestByType("BASELINE"), current: previewImage };
-  })();
-
-  const baselineMeta = formatUpload(getUploadedAt(comparisonSources.baseline));
-  const currentMeta  = formatUpload(getUploadedAt(comparisonSources.current));
-
   return (
     <div className="page-bg min-vh-100">
       {/* Top bar */}
@@ -455,7 +222,7 @@ export default function UploadPage() {
 
       <Container style={{ maxWidth: 1100 }}>
         {loading && <Alert variant="info" className="mt-3">Loading transformer data...</Alert>}
-        {error && !isUploading && !previewImage && <Alert variant="danger" className="mt-3">{error}</Alert>}
+        {error && !isUploading && <Alert variant="danger" className="mt-3">{error}</Alert>}
 
         {record && (
           <>
@@ -475,7 +242,7 @@ export default function UploadPage() {
               />
             </div>
 
-            {/* 1) Uploading */}
+            {/* Uploading state with progress */}
             {isUploading && (
               <Card className="mt-4">
                 <Card.Header>
@@ -517,65 +284,8 @@ export default function UploadPage() {
               </Card>
             )}
 
-            {/* 2) Thermal Image Comparison preview (NO separate header; title + Zoom inside component) */}
-            {!isUploading && previewImage && (
-              <Card className="mt-4">
-                <Card.Body className="position-relative">
-                  {/* Top inline bar inside the preview component */}
-                  <div className="d-flex justify-content-between align-items-center mb-3">
-                    <h5 className="mb-0">Thermal Image Comparison</h5>
-                    <Button
-                      size="sm"
-                      variant={syncZoomOn ? "primary" : "outline-secondary"}
-                      onClick={() => setSyncZoomOn((v) => !v)}
-                      className="d-flex align-items-center gap-1"
-                      aria-pressed={syncZoomOn}
-                      title={syncZoomOn ? "Disable synchronized Zoom" : "Enable synchronized Zoom"}
-                    >
-                      <i className={`bi ${syncZoomOn ? "bi-zoom-out" : "bi-zoom-in"}`} />
-                      Zoom
-                    </Button>
-                  </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-                    <PanZoomContainFrame
-                      src={resolveImageUrl(comparisonSources.baseline)}
-                      label="Baseline"
-                      metaText={baselineMeta}
-                      badgeColor="rgba(108,117,125,0.95)"
-                      syncZoomOn={syncZoomOn}
-                      isHoveringSync={isHoveringSync}
-                      onSyncEnter={onSyncEnter}
-                      onSyncLeave={onSyncLeave}
-                      onSyncMove={onSyncMove}
-                      syncStyle={syncZoomStyle(syncZoomOn)}
-                    />
-                    <PanZoomContainFrame
-                      src={resolveImageUrl(comparisonSources.current)}
-                      label="Current"
-                      metaText={currentMeta}
-                      badgeColor="rgba(59,52,213,0.95)"
-                      syncZoomOn={syncZoomOn}
-                      isHoveringSync={isHoveringSync}
-                      onSyncEnter={onSyncEnter}
-                      onSyncLeave={onSyncLeave}
-                      onSyncMove={onSyncMove}
-                      syncStyle={syncZoomStyle(syncZoomOn)}
-                    />
-                  </div>
-
-                  {/* Bottom action row with Back to uploads only */}
-                  <div className="d-flex justify-content-center mt-3">
-                    <Button variant="light" className="px-4" onClick={handleClosePreview}>
-                      Back to uploads
-                    </Button>
-                  </div>
-                </Card.Body>
-              </Card>
-            )}
-
-            {/* 3) Normal two-column page */}
-            {!isUploading && !previewImage && (
+            {/* Normal two-column page (when not uploading) */}
+            {!isUploading && (
               <Row className="mt-4">
                 <Col md={6}>
                   <Card>
@@ -677,24 +387,5 @@ function formatPretty(iso) {
     return `${weekday}(${day}), ${month}, ${year} ${t}`;
   } catch {
     return iso;
-  }
-}
-
-/* Compact timestamp for image metadata like 5/7/2025, 8:34:21 PM */
-function formatUpload(iso) {
-  if (!iso) return "—";
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString("en-US", {
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: true,
-    });
-  } catch {
-    return "—";
   }
 }
