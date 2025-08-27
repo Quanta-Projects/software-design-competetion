@@ -30,6 +30,12 @@ public class Image {
     @JsonBackReference
     private Transformer transformer;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "inspection_id", nullable = true, 
+                foreignKey = @ForeignKey(name = "FK_image_inspection"))
+    @JsonBackReference
+    private Inspection inspection;
+
     @Column(name = "file_name", nullable = false)
     private String fileName;
 

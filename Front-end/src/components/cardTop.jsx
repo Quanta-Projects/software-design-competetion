@@ -1,7 +1,7 @@
 import React from "react";
 import { ToggleButtonGroup, ToggleButton } from "react-bootstrap";
 
-function CardTop({ onAdd }) {
+function CardTop({ onAdd, title = "Transformers", buttonText = "Add Transformer" }) {
   return (
     <div className="d-flex align-items-center">
       {/* Left icon button */}
@@ -14,7 +14,7 @@ function CardTop({ onAdd }) {
       </button>
 
       {/* Title */}
-      <h4 className="card-title mb-0 me-3">Transformers</h4>
+      <h4 className="card-title mb-0 me-3">{title}</h4>
 
       {/* Add button */}
       <button
@@ -22,7 +22,7 @@ function CardTop({ onAdd }) {
         className="btn btn-primary shadow"
         onClick={onAdd}                 // <-- opens the modal
       >
-        Add Transformer
+        {buttonText}
       </button>
 
       {/* Right toggle buttons */}

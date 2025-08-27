@@ -1,10 +1,6 @@
-
-// src/components/transformerTable.jsx
 import { useNavigate } from "react-router-dom";
 import React from "react";
-import { Table, Dropdown } from "react-bootstrap";
-// If you use the icon below, make sure bootstrap-icons is loaded once in your app entry:
-// import "bootstrap-icons/font/bootstrap-icons.css";
+import { Table, Dropdown, Badge } from "react-bootstrap";
 
 const KebabToggle = React.forwardRef(({ onClick }, ref) => (
   <button
@@ -23,51 +19,75 @@ const KebabToggle = React.forwardRef(({ onClick }, ref) => (
   </button>
 ));
 
-// Helper function to format enum values for display
-const formatDisplayValue = (value) => {
-  if (!value) return "";
-  // Convert NUGEGODA -> Nugegoda, BULK -> Bulk, etc.
-  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+// Helper function to format date for display
+const formatDate = (dateString) => {
+  if (!dateString) return "—";
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric"
+    });
+  } catch {
+    return "—";
+  }
 };
 
+// Helper function to get status badge variant
+const getStatusVariant = (status) => {
+  switch (status?.toLowerCase()) {
+    case "completed":
+      return "success";
+    case "in_progress":
+    case "in progress":
+      return "primary";
+    case "missing":
+      return "warning";
+    case "cancelled":
+      return "danger";
+    default:
+      return "secondary";
+  }
+};
 
-export default function TransformerTable({ transformers = [], favs, onToggleFav, onEdit,          // <-- new (optional)
-  onDelete,        // <-- new (optional)
+// Helper function to format status display
+const formatStatus = (status) => {
+  if (!status) return "Unknown";
+  return status.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+};
+
+export default function InspectionTable({ 
+  inspections = [], 
+  favs, 
+  onToggleFav, 
+  onView,
+  onEdit,
+  onDelete
 }) {
-
-  const navigate = useNavigate();
-
-  // send the transformer id to /upload
-  const handleViewClick = (transformerId) => {
-    navigate("/upload", { state: { transformerId } });
-  };
-
-  // send the transformer id to /inspections
-  const handleViewInspectionsClick = (transformerId) => {
-    navigate("/inspections", { state: { transformerId } });
-  };
   return (
     <Table striped bordered hover className="align-middle">
       <thead>
         <tr>
           <th style={{ width: 52 }} aria-label="Favourite" className="text-center" />
-          <th>Transformer No.</th>
-          <th>Pole NO.</th>
-          <th>Region</th>
-          <th>Type</th>
+          <th>Inspection No.</th>
+          <th>Inspected Date</th>
+          <th>Maintenance Date</th>
+          <th>Status</th>
+          <th>Branch</th>
           <th style={{ width: 120 }} className="text-end"></th>
         </tr>
       </thead>
 
       <tbody>
-        {transformers.map((t) => {
-          const isFav = favs?.has(t.no);
+        {inspections.map((insp) => {
+          const isFav = favs?.has(insp.inspectionNo);
           return (
-            <tr key={t.id ?? t.no}>
+            <tr key={insp.id}>
               <td className="text-center align-middle">
                 <button
                   type="button"
-                  onClick={() => onToggleFav?.(t.no)}
+                  onClick={() => onToggleFav?.(insp.inspectionNo)}
                   aria-pressed={!!isFav}
                   aria-label={isFav ? "Unmark favourite" : "Mark as favourite"}
                   className={`btn ${isFav ? "btn-warning" : "btn-light"} d-inline-flex align-items-center justify-content-center p-0 shadow-sm`}
@@ -77,30 +97,33 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav,
                 </button>
               </td>
 
-              <td>{t.no}</td>
-              <td>{t.pole}</td>
-              <td>{formatDisplayValue(t.region)}</td>
-              <td>{formatDisplayValue(t.type)}</td>
-              {/* Last column: View + View Inspections + 3-dots actions */}
+              <td>
+                <div>
+                  <strong>{insp.inspectionNo}</strong>
+                  {insp.transformerNo && (
+                    <div className="text-muted small">Transformer: {insp.transformerNo}</div>
+                  )}
+                </div>
+              </td>
+              <td>{formatDate(insp.inspectedDate)}</td>
+              <td>{formatDate(insp.maintenanceDate)}</td>
+              <td>
+                <Badge bg={getStatusVariant(insp.status)}>
+                  {formatStatus(insp.status)}
+                </Badge>
+              </td>
+              <td>{insp.branch || "—"}</td>
+              
+              {/* Last column: View + 3-dots actions */}
               <td className="text-end">
                 <div className="d-inline-flex align-items-center gap-2">
                   <button
                     type="button"
                     className="btn btn-primary d-inline-flex align-items-center justify-content-center px-3"
                     style={{ height: 25 }}
-                    onClick={() => handleViewClick(t.id)}
+                    onClick={() => onView?.(insp.id)}
                   >
                     View
-                  </button>
-                  
-                  <button
-                    type="button"
-                    className="btn btn-info d-inline-flex align-items-center justify-content-center px-3"
-                    style={{ height: 25 }}
-                    onClick={() => handleViewInspectionsClick(t.id)}
-                    title="View Inspections"
-                  >
-                    Inspections
                   </button>
 
                   <Dropdown align="end">
@@ -110,17 +133,16 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav,
                       style={{ width: 32, height: 32, borderRadius: 8 }}
                       aria-label="Row actions"
                     >
-                      {/* If you don't use bootstrap-icons, replace with: <span style={{fontSize:18}}>⋮</span> */}
                       <i className="bi bi-three-dots-vertical" />
                     </Dropdown.Toggle>
 
                     <Dropdown.Menu className="kebab-menu">
-                      <Dropdown.Item onClick={() => onEdit?.(t)}>
+                      <Dropdown.Item onClick={() => onEdit?.(insp)}>
                         Edit
                       </Dropdown.Item>
                       <Dropdown.Item
                         className="text-danger"
-                        onClick={() => onDelete?.(t)}
+                        onClick={() => onDelete?.(insp)}
                       >
                         Delete
                       </Dropdown.Item>

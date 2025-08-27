@@ -20,6 +20,11 @@ public interface ImageRepository extends JpaRepository<Image, Integer> {
     List<Image> findByTransformerId(Integer transformerId);
 
     /**
+     * Find all images for a specific inspection
+     */
+    List<Image> findByInspectionId(Integer inspectionId);
+
+    /**
      * Find images by environmental condition
      */
     List<Image> findByEnvCondition(Image.EnvironmentalCondition condition);
