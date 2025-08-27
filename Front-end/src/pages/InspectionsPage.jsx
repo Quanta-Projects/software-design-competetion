@@ -10,6 +10,7 @@ import CardTop from "../components/cardTop";
 import InspectionTable from "../components/InspectionTable";
 import Pager from "../components/pager";
 import AddInspectionModal from "../components/AddInspectionModal";
+import EditInspectionModal from "../components/EditInspectionModal";
 import { getApiUrl } from "../utils/config";
 
 export default function InspectionsPage() {
@@ -27,6 +28,8 @@ export default function InspectionsPage() {
 
   // Modal state
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingInspection, setEditingInspection] = useState(null);
 
   // Load data
   useEffect(() => {
@@ -67,10 +70,16 @@ export default function InspectionsPage() {
   const [sortBy, setSortBy] = useState("number"); // number | status | date | branch
   const [query, setQuery] = useState("");
   const [range, setRange] = useState("all"); // all | 24h | 7d | 30d | ytd
+  const [starOnly, setStarOnly] = useState(false);
 
   // Filter & sort
   const filteredAndSorted = useMemo(() => {
     let result = [...allInspections];
+
+    // Favorites filter
+    if (starOnly) {
+      result = result.filter(insp => favs.has(insp.inspectionNo));
+    }
 
     // Search filter
     if (query.trim()) {
@@ -127,7 +136,7 @@ export default function InspectionsPage() {
     });
 
     return result;
-  }, [allInspections, sortBy, query, range]);
+  }, [allInspections, sortBy, query, range, starOnly, favs]);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -151,6 +160,15 @@ export default function InspectionsPage() {
     });
   };
 
+  // Reset filters
+  const handleResetFilters = () => {
+    setSortBy("number");
+    setQuery("");
+    setRange("all");
+    setStarOnly(false);
+    setCurrentPage(1);
+  };
+
   // Add inspection
   const handleAddInspection = () => {
     setShowAddModal(true);
@@ -163,15 +181,29 @@ export default function InspectionsPage() {
 
   // Edit inspection
   const handleEditInspection = (inspection) => {
-    console.log("Edit inspection:", inspection);
-    // TODO: Implement edit modal
+    setEditingInspection(inspection);
+    setShowEditModal(true);
   };
 
   // Delete inspection
-  const handleDeleteInspection = (inspection) => {
-    if (window.confirm(`Delete inspection ${inspection.inspectionNo}?`)) {
-      console.log("Delete inspection:", inspection);
-      // TODO: Implement delete API call
+  const handleDeleteInspection = async (inspection) => {
+    if (window.confirm(`Are you sure you want to delete inspection ${inspection.inspectionNumber}?`)) {
+      try {
+        const response = await fetch(getApiUrl(`inspections/${inspection.id}`), {
+          method: "DELETE"
+        });
+
+        if (response.ok) {
+          // Remove from local state
+          setAllInspections(prev => prev.filter(insp => insp.id !== inspection.id));
+          console.log("Inspection deleted successfully");
+        } else {
+          const errorText = await response.text();
+          alert(`Failed to delete inspection: ${response.status} - ${errorText}`);
+        }
+      } catch (err) {
+        alert(`Error deleting inspection: ${err.message}`);
+      }
     }
   };
 
@@ -179,6 +211,17 @@ export default function InspectionsPage() {
   const handleInspectionAdded = (newInspection) => {
     setAllInspections(prev => [...prev, newInspection]);
     setShowAddModal(false);
+  };
+
+  // Handle inspection update
+  const handleInspectionUpdated = (updatedInspection) => {
+    setAllInspections(prev => 
+      prev.map(insp => 
+        insp.id === updatedInspection.id ? updatedInspection : insp
+      )
+    );
+    setShowEditModal(false);
+    setEditingInspection(null);
   };
 
   const handleBack = () => {
@@ -205,18 +248,12 @@ export default function InspectionsPage() {
 
   return (
     <Container fluid>
-      {transformerId && (
-        <div className="mb-3">
-          <Button variant="outline-secondary" onClick={handleBack}>
-            ← Back to Transformers
-          </Button>
-        </div>
-      )}
       
       <CardTop 
         onAdd={handleAddInspection} 
         title={title} 
-        buttonText="Add Inspection" 
+        buttonText="Add Inspection"
+        onBack={handleBack}
       />
 
       <Toolbar
@@ -226,13 +263,9 @@ export default function InspectionsPage() {
         setQuery={setQuery}
         range={range}
         setRange={setRange}
-        placeholder="Search inspections..."
-        sortOptions={[
-          { value: "number", label: "Inspection No." },
-          { value: "date", label: "Inspection Date" },
-          { value: "status", label: "Status" },
-          { value: "branch", label: "Branch" }
-        ]}
+        starOnly={starOnly}
+        setStarOnly={setStarOnly}
+        onReset={handleResetFilters}
       />
 
       <InspectionTable
@@ -255,6 +288,16 @@ export default function InspectionsPage() {
         onHide={() => setShowAddModal(false)}
         onInspectionAdded={handleInspectionAdded}
         defaultTransformerId={transformerId}
+      />
+
+      <EditInspectionModal
+        show={showEditModal}
+        onHide={() => {
+          setShowEditModal(false);
+          setEditingInspection(null);
+        }}
+        onInspectionUpdated={handleInspectionUpdated}
+        inspection={editingInspection}
       />
     </Container>
   );

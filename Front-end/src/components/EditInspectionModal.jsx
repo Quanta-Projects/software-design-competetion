@@ -2,14 +2,14 @@ import { useState, useEffect } from "react";
 import { Modal, Button, Form, Alert, Spinner } from "react-bootstrap";
 import { getApiUrl } from "../utils/config";
 
-export default function AddInspectionModal({ 
+export default function EditInspectionModal({ 
   show, 
   onHide, 
-  onInspectionAdded,
-  defaultTransformerId 
+  onInspectionUpdated,
+  inspection // The inspection to edit
 }) {
   const [formData, setFormData] = useState({
-    transformerId: defaultTransformerId || "",
+    transformerId: "",
     inspectionNo: "",
     branch: "",
     inspectedDate: "",
@@ -32,15 +32,51 @@ export default function AddInspectionModal({
     }
   }, [show]);
 
-  // Update form data when defaultTransformerId changes
+  // Populate form when inspection prop changes
   useEffect(() => {
-    if (defaultTransformerId) {
-      setFormData(prev => ({
-        ...prev,
-        transformerId: defaultTransformerId
-      }));
+    if (inspection && show) {
+      console.log("Loading inspection data:", inspection);
+      setFormData({
+        transformerId: inspection.transformerId || "",
+        inspectionNo: inspection.inspectionNo || inspection.inspectionNumber || "",
+        branch: inspection.branch || "",
+        inspectedDate: inspection.inspectedDate ? formatDateTimeForInput(inspection.inspectedDate) : "",
+        maintenanceDate: inspection.maintenanceDate ? formatDateTimeForInput(inspection.maintenanceDate) : "",
+        status: inspection.status || "IN_PROGRESS",
+        inspectedBy: inspection.inspectedBy || inspection.inspectorName || "",
+        notes: inspection.notes || inspection.description || ""
+      });
+    } else if (show) {
+      // Reset form when opening modal without inspection data
+      setFormData({
+        transformerId: "",
+        inspectionNo: "",
+        branch: "",
+        inspectedDate: "",
+        maintenanceDate: "",
+        status: "IN_PROGRESS",
+        inspectedBy: "",
+        notes: ""
+      });
     }
-  }, [defaultTransformerId]);
+  }, [inspection, show]);
+
+  // Helper function to format datetime for input
+  const formatDateTimeForInput = (dateString) => {
+    if (!dateString) return "";
+    try {
+      const date = new Date(dateString);
+      // Format as YYYY-MM-DDTHH:mm (datetime-local format)
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    } catch {
+      return "";
+    }
+  };
 
   const loadInitialData = async () => {
     setLoadingData(true);
@@ -58,9 +94,18 @@ export default function AddInspectionModal({
         
         setTransformers(transformersData);
         setStatuses(statusesData);
+      } else {
+        // Fallback statuses if API doesn't exist
+        setStatuses(["IN_PROGRESS", "COMPLETED", "MISSING", "CANCELLED"]);
+        if (transformersRes.ok) {
+          const transformersData = await transformersRes.json();
+          setTransformers(transformersData);
+        }
       }
     } catch (err) {
       console.error("Error loading data:", err);
+      // Fallback statuses
+      setStatuses(["IN_PROGRESS", "COMPLETED", "MISSING", "CANCELLED"]);
     } finally {
       setLoadingData(false);
     }
@@ -88,8 +133,8 @@ export default function AddInspectionModal({
         maintenanceDate: formData.maintenanceDate ? new Date(formData.maintenanceDate).toISOString() : null
       };
 
-      const response = await fetch(getApiUrl("inspections"), {
-        method: "POST",
+      const response = await fetch(getApiUrl(`inspections/${inspection.id}`), {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
@@ -98,14 +143,14 @@ export default function AddInspectionModal({
 
       if (!response.ok) {
         const errorData = await response.text();
-        throw new Error(`Failed to create inspection: ${errorData}`);
+        throw new Error(`Failed to update inspection: ${errorData}`);
       }
 
-      const newInspection = await response.json();
-      onInspectionAdded?.(newInspection);
+      const updatedInspection = await response.json();
+      onInspectionUpdated?.(updatedInspection);
       handleClose();
     } catch (err) {
-      setError(err.message || "Failed to create inspection");
+      setError(err.message || "Failed to update inspection");
     } finally {
       setLoading(false);
     }
@@ -113,7 +158,7 @@ export default function AddInspectionModal({
 
   const handleClose = () => {
     setFormData({
-      transformerId: defaultTransformerId || "",
+      transformerId: "",
       inspectionNo: "",
       branch: "",
       inspectedDate: "",
@@ -133,7 +178,7 @@ export default function AddInspectionModal({
   return (
     <Modal show={show} onHide={handleClose} size="lg">
       <Modal.Header closeButton>
-        <Modal.Title>Add New Inspection</Modal.Title>
+        <Modal.Title>Edit Inspection</Modal.Title>
       </Modal.Header>
       
       <Modal.Body>
@@ -164,12 +209,11 @@ export default function AddInspectionModal({
                 value={formData.transformerId}
                 onChange={handleChange}
                 required
-                disabled={!!defaultTransformerId}
               >
                 <option value="">Select Transformer</option>
                 {transformers.map(transformer => (
                   <option key={transformer.id} value={transformer.id}>
-                    {transformer.transformerNo} - {transformer.region}
+                    {transformer.transformerNo} - {transformer.location}
                   </option>
                 ))}
               </Form.Select>
@@ -264,10 +308,10 @@ export default function AddInspectionModal({
           {loading ? (
             <>
               <Spinner animation="border" size="sm" className="me-2" />
-              Creating...
+              Updating...
             </>
           ) : (
-            "Create Inspection"
+            "Update Inspection"
           )}
         </Button>
       </Modal.Footer>

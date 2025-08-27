@@ -15,10 +15,17 @@ export default function InspectionHeader({
   onViewBaseline = () => {},
   onDeleteBaseline = () => {},
   onOpenBaseline = () => {},
+  onBack, // New prop for custom back navigation
 }) {
   const navigate = useNavigate();
 
-  const handleBack = () => navigate("/transformers");
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      navigate("/transformers"); // Default behavior
+    }
+  };
 
   const handleRename = async () => {
     const newName = prompt("Enter new transformer number:", transformerNo);

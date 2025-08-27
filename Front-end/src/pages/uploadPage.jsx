@@ -249,6 +249,17 @@ export default function UploadPage() {
     }
   };
 
+  // Handle back navigation based on how the page was accessed
+  const handleBack = () => {
+    if (inspectionId) {
+      // If we came from inspections, go back to inspections
+      navigate("/inspections");
+    } else {
+      // If we came from transformers or default, go to transformers
+      navigate("/transformers");
+    }
+  };
+
   return (
     <div className="page-bg min-vh-100">
       {/* Top bar */}
@@ -289,6 +300,7 @@ export default function UploadPage() {
                 onViewBaseline={handleViewBaseline}
                 onDeleteBaseline={handleDeleteBaseline}
                 onOpenBaseline={handleOpenBaseline}
+                onBack={handleBack}
               />
             </div>
 

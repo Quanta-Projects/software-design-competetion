@@ -65,6 +65,24 @@ export default function InspectionTable({
   onEdit,
   onDelete
 }) {
+  // Show empty state if no inspections
+  if (!inspections || inspections.length === 0) {
+    return (
+      <div className="text-center py-5">
+        <div className="mb-3">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" className="text-muted">
+            <path d="M9 11H15M9 15H15M9 7H15M6 3H18C19.1046 3 20 3.89543 20 5V19C20 20.1046 19.1046 21 18 21H6C4.89543 21 4 20.1046 4 19V5C4 3.89543 4.89543 3 6 3Z" 
+                  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+        <h5 className="text-muted">No Inspections Found</h5>
+        <p className="text-muted mb-0">
+          No inspections have been created yet. Click "Add Inspection" to create your first inspection.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <Table striped bordered hover className="align-middle">
       <thead>
