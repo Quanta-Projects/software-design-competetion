@@ -84,15 +84,7 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav,
               {/* Last column: View + View Inspections + 3-dots actions */}
               <td className="text-end">
                 <div className="d-inline-flex align-items-center gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-primary d-inline-flex align-items-center justify-content-center px-3"
-                    style={{ height: 25 }}
-                    onClick={() => handleViewClick(t.id)}
-                  >
-                    View
-                  </button>
-                  
+    
                   <button
                     type="button"
                     className="btn btn-info d-inline-flex align-items-center justify-content-center px-3"
