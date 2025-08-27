@@ -16,8 +16,11 @@ import lombok.Setter;
 @NoArgsConstructor
 public class ImageRequest {
 
-    @NotNull(message = "Transformer ID is required")
+    // Optional - required only if inspectionId is not provided
     private Integer transformerId;
+
+    // Optional - but either this or transformerId must be provided
+    private Integer inspectionId;
 
     @NotNull(message = "Environmental condition is required")
     private Image.EnvironmentalCondition envCondition;

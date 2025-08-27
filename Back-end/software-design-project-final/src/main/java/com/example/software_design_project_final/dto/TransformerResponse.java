@@ -27,4 +27,6 @@ public class TransformerResponse {
     private LocalDateTime updatedAt;
     private List<ImageResponse> images;
     private Integer imageCount;
+    private List<InspectionResponse> inspections;
+    private Integer inspectionCount;
 }

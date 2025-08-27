@@ -160,6 +160,7 @@ export default function PreviewPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const transformerId = location.state?.transformerId;
+  const inspectionId = location.state?.inspectionId;
   const uploadedImage = location.state?.uploadedImage;
 
   const [record, setRecord] = useState(null);
@@ -264,7 +265,13 @@ export default function PreviewPage() {
   const baselineMeta = formatUpload(getUploadedAt(comparisonSources.baseline));
   const currentMeta  = formatUpload(getUploadedAt(comparisonSources.current));
 
-  const goBackToUploads = () => navigate("/upload", { state: { transformerId } });
+  const goBackToUploads = () => {
+    const state = { transformerId };
+    if (inspectionId) {
+      state.inspectionId = inspectionId;
+    }
+    navigate("/upload", { state });
+  };
 
   return (
     <div className="page-bg min-vh-100">
@@ -298,6 +305,7 @@ export default function PreviewPage() {
                 branch={record.region}
                 inspectedBy={"A-110"}
                 status={{ text: "In progress", variant: "success" }}
+                onBack={goBackToUploads}
               />
             </div>
 

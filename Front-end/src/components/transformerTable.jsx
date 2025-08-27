@@ -41,6 +41,11 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav,
   const handleViewClick = (transformerId) => {
     navigate("/upload", { state: { transformerId } });
   };
+
+  // send the transformer id to /inspections
+  const handleViewInspectionsClick = (transformerId) => {
+    navigate("/inspections", { state: { transformerId } });
+  };
   return (
     <Table striped bordered hover className="align-middle">
       <thead>
@@ -76,17 +81,19 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav,
               <td>{t.pole}</td>
               <td>{formatDisplayValue(t.region)}</td>
               <td>{formatDisplayValue(t.type)}</td>
-              {/* Last column: View + 3-dots actions */}
+              {/* Last column: View + View Inspections + 3-dots actions */}
               <td className="text-end">
                 <div className="d-inline-flex align-items-center gap-2">
-                                  <button
-                  type="button"
-                  className="btn btn-primary d-inline-flex align-items-center justify-content-center px-3"
-                  style={{ height: 25 }}
-                  onClick={() => handleViewClick(t.id)}
-                >
-                  View
-                </button>
+    
+                  <button
+                    type="button"
+                    className="btn btn-info d-inline-flex align-items-center justify-content-center px-3"
+                    style={{ height: 25 }}
+                    onClick={() => handleViewInspectionsClick(t.id)}
+                    title="View Inspections"
+                  >
+                    Inspections
+                  </button>
 
                   <Dropdown align="end">
                     <Dropdown.Toggle as={KebabToggle}

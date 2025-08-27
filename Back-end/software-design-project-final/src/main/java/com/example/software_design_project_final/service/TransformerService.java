@@ -128,6 +128,13 @@ public class TransformerService {
             response.setImageCount(0);
         }
 
+        // Set inspection count
+        if (transformer.getInspections() != null) {
+            response.setInspectionCount(transformer.getInspections().size());
+        } else {
+            response.setInspectionCount(0);
+        }
+
         return response;
     }
 }

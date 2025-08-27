@@ -41,12 +41,19 @@ public class ImageController {
     @PostMapping("/upload")
     public ResponseEntity<ImageResponse> uploadImage(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("transformerId") Integer transformerId,
+            @RequestParam(value = "transformerId", required = false) Integer transformerId,
+            @RequestParam(value = "inspectionId", required = false) Integer inspectionId,
             @RequestParam("envCondition") Image.EnvironmentalCondition envCondition,
             @RequestParam("imageType") Image.ImageType imageType) {
 
+        // Validation: Either transformerId or inspectionId must be provided
+        if (transformerId == null && inspectionId == null) {
+            throw new IllegalArgumentException("Either transformerId or inspectionId must be provided");
+        }
+
         ImageRequest request = new ImageRequest();
         request.setTransformerId(transformerId);
+        request.setInspectionId(inspectionId);
         request.setEnvCondition(envCondition);
         request.setImageType(imageType);
 
@@ -71,6 +78,16 @@ public class ImageController {
     @GetMapping("/transformer/{transformerId}")
     public ResponseEntity<List<ImageResponse>> getImagesByTransformerId(@PathVariable Integer transformerId) {
         List<ImageResponse> images = imageService.getImagesByTransformerId(transformerId);
+        return ResponseEntity.ok(images);
+    }
+
+    /**
+     * Get images by inspection ID
+     * GET /api/images/inspection/{inspectionId}
+     */
+    @GetMapping("/inspection/{inspectionId}")
+    public ResponseEntity<List<ImageResponse>> getImagesByInspectionId(@PathVariable Integer inspectionId) {
+        List<ImageResponse> images = imageService.getImagesByInspectionId(inspectionId);
         return ResponseEntity.ok(images);
     }
 

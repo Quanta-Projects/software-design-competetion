@@ -9,8 +9,10 @@ export default function UploadPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const transformerId = location.state?.transformerId;
+  const inspectionId = location.state?.inspectionId;
 
   const [record, setRecord] = useState(null);
+  const [inspection, setInspection] = useState(null);
   const [images, setImages] = useState([]);
   const [error, setError] = useState(null);
   const [showMenu, setShowMenu] = useState(false);
@@ -24,9 +26,9 @@ export default function UploadPage() {
   useEffect(() => {
     let isMounted = true;
 
-    const loadTransformerAndImages = async () => {
-      if (!transformerId) {
-        setError("No transformer selected.");
+    const loadData = async () => {
+      if (!transformerId && !inspectionId) {
+        setError("No transformer or inspection selected.");
         setLoading(false);
         return;
       }
@@ -35,19 +37,44 @@ export default function UploadPage() {
         setError(null);
         setLoading(true);
 
-        const [transformerRes, imagesRes] = await Promise.all([
-          fetch(getApiUrl(`transformers/${transformerId}`)),
-          fetch(getApiUrl(`images/transformer/${transformerId}`)),
-        ]);
+        if (inspectionId) {
+          // Load inspection and its related data
+          const [inspectionRes, imagesRes] = await Promise.all([
+            fetch(getApiUrl(`inspections/${inspectionId}`)),
+            fetch(getApiUrl(`images/inspection/${inspectionId}`)),
+          ]);
 
-        if (!transformerRes.ok) throw new Error(`Failed to load transformer: ${transformerRes.status}`);
-        if (!imagesRes.ok) throw new Error(`Failed to load images: ${imagesRes.status}`);
+          if (!inspectionRes.ok) throw new Error(`Failed to load inspection: ${inspectionRes.status}`);
+          if (!imagesRes.ok) throw new Error(`Failed to load images: ${imagesRes.status}`);
 
-        const [transformerData, imagesData] = await Promise.all([transformerRes.json(), imagesRes.json()]);
+          const [inspectionData, imagesData] = await Promise.all([inspectionRes.json(), imagesRes.json()]);
 
-        if (isMounted) {
-          setRecord(transformerData);
-          setImages(imagesData);
+          // Also load transformer data
+          const transformerRes = await fetch(getApiUrl(`transformers/${inspectionData.transformerId}`));
+          if (!transformerRes.ok) throw new Error(`Failed to load transformer: ${transformerRes.status}`);
+          const transformerData = await transformerRes.json();
+
+          if (isMounted) {
+            setInspection(inspectionData);
+            setRecord(transformerData);
+            setImages(imagesData);
+          }
+        } else if (transformerId) {
+          // Load transformer and its images
+          const [transformerRes, imagesRes] = await Promise.all([
+            fetch(getApiUrl(`transformers/${transformerId}`)),
+            fetch(getApiUrl(`images/transformer/${transformerId}`)),
+          ]);
+
+          if (!transformerRes.ok) throw new Error(`Failed to load transformer: ${transformerRes.status}`);
+          if (!imagesRes.ok) throw new Error(`Failed to load images: ${imagesRes.status}`);
+
+          const [transformerData, imagesData] = await Promise.all([transformerRes.json(), imagesRes.json()]);
+
+          if (isMounted) {
+            setRecord(transformerData);
+            setImages(imagesData);
+          }
         }
       } catch (e) {
         if (isMounted) setError(e.message || String(e));
@@ -56,14 +83,14 @@ export default function UploadPage() {
       }
     };
 
-    loadTransformerAndImages();
+    loadData();
 
     return () => {
       isMounted = false;
       try { xhrRef.current?.abort(); } catch {}
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transformerId]);
+  }, [transformerId, inspectionId]);
 
   const createdPretty = useMemo(
     () => (record?.createdAt ? formatPretty(record.createdAt) : "—"),
@@ -78,7 +105,15 @@ export default function UploadPage() {
   // Upload (fire-and-forget, with real abort using XHR)
   // ---------------------------
   const uploadToBackend = (formData) => {
-    if (transformerId && !formData.has("transformerId")) formData.append("transformerId", transformerId);
+    // Get transformerId from either state or loaded inspection data
+    const effectiveTransformerId = transformerId || (inspection?.transformerId);
+    
+    if (effectiveTransformerId && !formData.has("transformerId")) {
+      formData.append("transformerId", effectiveTransformerId);
+    }
+    if (inspectionId && !formData.has("inspectionId")) {
+      formData.append("inspectionId", inspectionId);
+    }
     if (!formData.has("envCondition")) formData.append("envCondition", "SUNNY");
     if (!formData.has("imageType")) formData.append("imageType", "BASELINE");
 
@@ -107,7 +142,12 @@ export default function UploadPage() {
           try { uploaded = JSON.parse(xhr.responseText || "{}"); } catch {}
 
           try {
-            const imagesRes = await fetch(getApiUrl(`images/transformer/${transformerId}`));
+            // Get effective transformerId for API calls
+            const effectiveTransformerId = transformerId || (inspection?.transformerId);
+            const imagesEndpoint = inspectionId ? 
+              `images/inspection/${inspectionId}` : 
+              `images/transformer/${effectiveTransformerId}`;
+            const imagesRes = await fetch(getApiUrl(imagesEndpoint));
             if (imagesRes.ok) {
               const newImages = await imagesRes.json();
               setImages(newImages);
@@ -127,7 +167,13 @@ export default function UploadPage() {
           xhrRef.current = null;
 
           // go to preview page
-          navigate("/preview", { state: { transformerId, uploadedImage: uploaded } });
+          navigate("/preview", { 
+            state: { 
+              transformerId: transformerId || (inspection?.transformerId), 
+              inspectionId,
+              uploadedImage: uploaded 
+            } 
+          });
           return;
         } else {
           let msg = `Upload failed (${xhr.status})`;
@@ -203,6 +249,17 @@ export default function UploadPage() {
     }
   };
 
+  // Handle back navigation based on how the page was accessed
+  const handleBack = () => {
+    if (inspectionId) {
+      // If we came from inspections, go back to inspections
+      navigate("/inspections");
+    } else {
+      // If we came from transformers or default, go to transformers
+      navigate("/transformers");
+    }
+  };
+
   return (
     <div className="page-bg min-vh-100">
       {/* Top bar */}
@@ -229,16 +286,21 @@ export default function UploadPage() {
             <div className="mt-3">
               <InspectionHeader
                 id={record.id}
-                dateLabel={createdPretty}
-                lastUpdated={updatedPretty}
+                dateLabel={inspection ? formatPretty(inspection.inspectedDate) : createdPretty}
+                lastUpdated={inspection ? formatPretty(inspection.updatedAt) : updatedPretty}
                 transformerNo={record.transformerNo}
                 poleNo={record.pole_no}
-                branch={record.region}
-                inspectedBy={"A-110"}
-                status={{ text: isUploading ? "Uploading…" : "In progress", variant: "success" }}
+                branch={inspection ? inspection.branch : record.region}
+                inspectedBy={inspection ? inspection.inspectedBy : "A-110"}
+                status={{ 
+                  text: isUploading ? "Uploading…" : 
+                        inspection ? formatInspectionStatus(inspection.status) : "In progress", 
+                  variant: "success" 
+                }}
                 onViewBaseline={handleViewBaseline}
                 onDeleteBaseline={handleDeleteBaseline}
                 onOpenBaseline={handleOpenBaseline}
+                onBack={handleBack}
               />
             </div>
 
@@ -388,4 +450,10 @@ function formatPretty(iso) {
   } catch {
     return iso;
   }
+}
+
+/* Format inspection status for display */
+function formatInspectionStatus(status) {
+  if (!status) return "Unknown";
+  return status.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 }

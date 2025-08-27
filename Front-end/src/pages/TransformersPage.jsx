@@ -240,12 +240,12 @@ export default function TransformersPage() {
 
   return (
     <Container fluid>
-      <h2>☰ Transformers</h2>
+      <h2>Transformers</h2>
 
       <div className="card">
         <div className="card-body">
           {/* Top bar (title + add button + toggle) */}
-          <CardTop onAdd={() => { setEditing(null); setShowAdd(true); }} />
+          <CardTop onAdd={() => { setEditing(null); setShowAdd(true); }} showToggle={true} hideBack={true} />
 
           {/* Filters */}
           <div className="mt-3">

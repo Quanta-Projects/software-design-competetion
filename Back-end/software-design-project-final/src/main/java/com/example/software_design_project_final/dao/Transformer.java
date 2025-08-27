@@ -53,6 +53,10 @@ public class Transformer {
     @JsonManagedReference
     private List<Image> images = new ArrayList<>();
 
+    @OneToMany(mappedBy = "transformer", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    @JsonManagedReference
+    private List<Inspection> inspections = new ArrayList<>();
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

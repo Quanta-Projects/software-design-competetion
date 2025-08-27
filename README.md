@@ -1,52 +1,76 @@
 # Transformer Management System
 
-> A comprehensive enterprise-grade web application for managing electrical transformers with advanced image management capabilities, built with modern React.js frontend and robust Spring Boot backend architecture.
+A comprehensive enterprise-grade web application for managing electrical transformers and inspection operations, built with modern React.js frontend and robust Spring Boot backend architecture.
 
 [![Java](https://img.shields.io/badge/Java-17+-ED8B00?style=flat&logo=java&logoColor=white)](https://adoptopenjdk.net/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.4-6DB33F?style=flat&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![React](https://img.shields.io/badge/React-19.1.1-61DAFB?style=flat&logo=react&logoColor=black)](https://reactjs.org/)
 [![MySQL](https://img.shields.io/badge/MySQL-8.0+-4479A1?style=flat&logo=mysql&logoColor=white)](https://www.mysql.com/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-## 📋 Table of Contents
+## Table of Contents
 
-- [Project Overview](#-project-overview)
-- [Technology Stack](#-technology-stack)
-- [Prerequisites](#-prerequisites)
-- [Quick Start Guide](#-quick-start-guide)
-- [Frontend Setup](#-frontend-setup)
-- [Backend Setup](#-backend-setup)
-- [Database Configuration](#-database-configuration)
-- [Environment Configuration](#-environment-configuration)
-- [Docker Deployment](#-docker-deployment)
-- [API Documentation](#-api-documentation)
-- [Key Features](#-key-features)
-- [Project Architecture](#-project-architecture)
-- [Troubleshooting](#-troubleshooting)
-- [Contributing](#-contributing)
+- [Project Overview](#project-overview)
+- [Key Features](#key-features)
+- [Technology Stack](#technology-stack)
+- [Prerequisites](#prerequisites)
+- [Installation & Setup](#installation--setup)
+- [Running the Application](#running-the-application)
+- [API Documentation](#api-documentation)
+- [Project Structure](#project-structure)
+- [Database Schema](#database-schema)
+- [Troubleshooting](#troubleshooting)
 
-## 🚀 Project Overview
+## Project Overview
 
-The **Transformer Management System** is a modern, full-stack web application designed for electrical utility companies and maintenance teams to efficiently manage their transformer infrastructure. The system provides comprehensive CRUD operations, advanced search capabilities, and multimedia support for transformer documentation.
+The **Transformer Management System** is a modern, full-stack web application designed for electrical utility companies and maintenance teams to efficiently manage their transformer infrastructure and inspection operations. The system provides comprehensive CRUD operations, advanced search capabilities, multimedia support, and complete inspection lifecycle management.
 
-### Key Capabilities
-- **Comprehensive Asset Management** - Complete lifecycle management of electrical transformers
-- **Advanced Search & Filtering** - Multi-criteria search by region, type, location, and custom attributes
-- **Media Management** - Secure image upload, storage, and management with preview capabilities
-- **Personalization** - User-specific favorites and bookmarking system
+### Core Capabilities
+- **Transformer Asset Management** - Complete lifecycle management of electrical transformers with detailed specifications
+- **Inspection Management** - Full CRUD operations for transformer inspections with status tracking
+- **Image Management** - Secure image upload, storage, and management with preview capabilities for transformers and inspections
+- **Advanced Search & Filtering** - Multi-criteria search by region, type, location, status, and custom attributes
 - **Responsive Design** - Cross-platform compatibility (Desktop, Tablet, Mobile)
-- **Enterprise Security** - Built-in security features and data validation
-- **Performance Optimized** - Efficient database queries and optimized frontend rendering
+- **Enterprise Security** - Built-in security features and comprehensive data validation
 
-## 🛠️ Technology Stack
+## Key Features
+
+### Transformer Management
+- **Complete CRUD Operations** - Create, read, update, and delete transformer records
+- **Advanced Search & Filtering** - Multi-criteria search by location, type, capacity, and specifications
+- **Data Validation** - Comprehensive input validation and error handling
+- **Favorites System** - User-specific bookmarking for frequently accessed transformers
+
+### Inspection Management
+- **Inspection Lifecycle** - Complete inspection management from creation to completion
+- **Status Tracking** - Track inspection status: In Progress, Completed, Missing, Cancelled
+- **Date Management** - Schedule inspection and maintenance dates with datetime precision
+- **Inspector Assignment** - Assign inspections to specific personnel with tracking
+- **Branch Organization** - Organize inspections by branch or department
+- **Search & Filter** - Search inspections by number, branch, inspector, or status
+
+### Image Management
+- **Multi-Entity Support** - Upload images for both transformers and inspections
+- **Secure Upload** - Support for multiple image formats (JPG, PNG, GIF)
+- **Image Gallery** - Thumbnail generation and gallery view with preview capabilities
+- **Organized Storage** - Automated file organization with proper naming conventions
+- **Size Controls** - Configurable file size restrictions and validation
+
+### User Interface
+- **Modern Design** - Clean, professional interface using Bootstrap components
+- **Responsive Layout** - Optimized for desktop, tablet, and mobile devices
+- **Intuitive Navigation** - Easy-to-use routing with React Router
+- **Real-time Updates** - Dynamic content updates without page refresh
+- **Empty State Handling** - User-friendly messages when no data is available
+
+## Technology Stack
 
 ### Frontend Architecture
 | Technology | Version | Purpose |
 |------------|---------|---------|
 | **React.js** | 19.1.1 | Core UI framework with hooks and modern patterns |
 | **React Router** | 7.8.2 | Client-side routing and navigation |
-| **React Bootstrap** | 2.10.10 | Professional UI components and styling |
-| **Bootstrap** | 5.3.7 | CSS framework and responsive design |
+| **React Bootstrap** | 2.10.10 | Professional UI components and responsive design |
+| **Bootstrap** | 5.3.7 | CSS framework and utility classes |
 
 ### Backend Architecture
 | Technology | Version | Purpose |
@@ -55,17 +79,16 @@ The **Transformer Management System** is a modern, full-stack web application de
 | **Java** | 17+ | Programming language (LTS version) |
 | **Spring Data JPA** | Latest | Object-relational mapping and data access |
 | **Hibernate** | Latest | ORM implementation and database abstraction |
-| **MySQL** | 8.0+ | Primary database for data persistence |
+| **MySQL** | 8.0+ | Primary relational database |
 | **Maven** | 3.6+ | Build automation and dependency management |
+| **ModelMapper** | Latest | Object-to-object mapping |
 
 ### Development Tools
 - **Git** - Version control system
 - **Node.js** (18+) - JavaScript runtime for frontend development
 - **npm** - Package manager for frontend dependencies
 
-## 📋 Prerequisites
-
-Before setting up the project, ensure your development environment meets the following requirements:
+## Prerequisites
 
 ### System Requirements
 
@@ -105,7 +128,7 @@ git --version
 # Expected: git version 2.30 or higher
 ```
 
-## 🚀 Quick Start Guide
+## Installation & Setup
 
 ### 1. Repository Setup
 
@@ -129,7 +152,7 @@ mysql -u root -p
 -- Create the application database
 CREATE DATABASE transformer_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- (Optional) Create a dedicated user for the application
+-- Create a dedicated user for the application (recommended)
 CREATE USER 'transformer_user'@'localhost' IDENTIFIED BY 'secure_password_123';
 GRANT ALL PRIVILEGES ON transformer_db.* TO 'transformer_user'@'localhost';
 FLUSH PRIVILEGES;
@@ -141,66 +164,19 @@ SHOW DATABASES;
 EXIT;
 ```
 
-## 🎨 Frontend Setup
+### 3. Backend Configuration
 
-### Installation and Configuration
-
-```powershell
-# Navigate to frontend directory
-cd Front-end
-
-# Install project dependencies
-npm install
-
-# Configure environment variables
-# Create .env file in Front-end directory (if not exists)
-echo "REACT_APP_API_BASE_URL=http://localhost:8080/api" > .env
-
-# Start the React development server
-npm start
-```
-
-### Available Scripts
-
-| Command | Description |
-|---------|-------------|
-| `npm start` | Starts development server on http://localhost:3000 |
-| `npm run build` | Creates optimized production build |
-| `npm test` | Runs the test suite |
-| `npm run eject` | Ejects from create-react-app (one-way operation) |
-
-### Frontend Configuration
-
-The frontend uses the following environment variables:
-
-```properties
-# Frontend Environment (.env)
-REACT_APP_API_BASE_URL=http://localhost:8080/api
-REACT_APP_ENVIRONMENT=development
-```
-
-## ⚙️ Backend Setup
-
-### Installation and Configuration
+Navigate to the backend directory and configure environment variables:
 
 ```powershell
 # Navigate to backend directory
 cd Back-end\software-design-project-final
 
-# Configure environment variables
-# Edit the .env file with your database settings
-# See Environment Configuration section for details
-
-# Build and run the Spring Boot application
-.\mvnw.cmd clean spring-boot:run
-
-# Alternative: Run with Maven directly (if Maven is installed globally)
-mvn clean spring-boot:run
+# Create or edit .env file
+# Configure the following variables:
 ```
 
-### Backend Configuration
-
-Configure the `.env` file in `Back-end/software-design-project-final/`:
+Create a `.env` file in `Back-end/software-design-project-final/` with:
 
 ```properties
 # Database Configuration
@@ -215,278 +191,384 @@ APP_PROFILE=development
 # File Upload Configuration
 FILE_UPLOAD_PATH=./uploads/images/
 MAX_FILE_SIZE=10MB
-```
-
-### Available Maven Commands
-
-| Command | Description |
-|---------|-------------|
-| `.\mvnw.cmd clean compile` | Compiles the project |
-| `.\mvnw.cmd clean package` | Creates JAR file |
-| `.\mvnw.cmd spring-boot:run` | Runs the application |
-| `.\mvnw.cmd test` | Runs unit tests |
-
-## 🗄️ Database Configuration
-
-### Local Development Setup
-
-1. **Install MySQL 8.0+**
-2. **Create Database and User:**
-
-```sql
--- Create database
-CREATE DATABASE transformer_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- Create user (optional but recommended)
-CREATE USER 'transformer_user'@'localhost' IDENTIFIED BY 'your_secure_password';
-GRANT ALL PRIVILEGES ON transformer_db.* TO 'transformer_user'@'localhost';
-FLUSH PRIVILEGES;
-```
-
-3. **Update Backend Configuration:**
-   - Edit `Back-end/software-design-project-final/.env`
-   - Update database credentials
-
-### Database Schema
-
-The application automatically creates the following main tables:
-- `transformers` - Main transformer data
-- `images` - Image metadata and references
-- `users` - User management (if authentication is implemented)
-
-## 🔧 Environment Configuration
-
-The project supports multiple environment configurations:
-
-### Development Environment
-Located in `Back-end/software-design-project-final/.env`:
-
-```properties
-# Database
-DB_URL=jdbc:mysql://localhost:3306/transformer_db
-DB_USERNAME=transformer_user
-DB_PASSWORD=your_password
-
-# Application
-APP_PORT=8080
-APP_PROFILE=development
-
-# File Upload
-FILE_UPLOAD_PATH=./uploads/images/
-MAX_FILE_SIZE=10MB
 ALLOWED_FILE_TYPES=jpg,jpeg,png,gif
 ```
 
-### Production Environment
-For production deployment, see [ENV_SETUP.md](ENV_SETUP.md) for detailed configuration options.
+### 4. Frontend Configuration
 
-## 🐳 Docker Deployment
-
-### Option 1: Backend Only (Recommended for Development)
-
-This option runs the backend and database in Docker while keeping the frontend local:
+Navigate to the frontend directory and configure environment variables:
 
 ```powershell
-# Start backend services
-docker-compose -f docker-compose.backend.yml up --build -d
-
-# Start frontend locally
+# Navigate to frontend directory
 cd Front-end
+
+# Create or edit .env file
+echo "REACT_APP_API_BASE_URL=http://localhost:8080/api" > .env
+```
+
+Create a `.env` file in `Front-end/` with:
+
+```properties
+# Frontend Environment Configuration
+REACT_APP_API_BASE_URL=http://localhost:8080/api
+REACT_APP_ENVIRONMENT=development
+```
+
+## Running the Application
+
+### Method 1: Manual Setup (Recommended for Development)
+
+#### Step 1: Start the Backend
+
+```powershell
+# Navigate to backend directory
+cd Back-end\software-design-project-final
+
+# Install dependencies and start the application
+.\mvnw.cmd clean spring-boot:run
+
+# Alternative with global Maven (if installed)
+mvn clean spring-boot:run
+```
+
+The backend server will start on **http://localhost:8080**
+
+#### Step 2: Start the Frontend
+
+Open a new terminal window:
+
+```powershell
+# Navigate to frontend directory
+cd Front-end
+
+# Install dependencies
+npm install
+
+# Start the development server
 npm start
 ```
 
-### Option 2: Full Stack Deployment
+The frontend application will start on **http://localhost:3000**
+
+### Method 3: Production Build
+
+#### Build Frontend for Production
 
 ```powershell
-# Start all services
-docker-compose up --build -d
+cd Front-end
+npm run build
 ```
 
-### Docker Configuration
+#### Package Backend for Production
 
-The project includes several Docker Compose files:
-- `docker-compose.yml` - Full stack deployment
-- `docker-compose.backend.yml` - Backend and database only
-- `docker-compose.prod.yml` - Production configuration
+```powershell
+cd Back-end\software-design-project-final
+.\mvnw.cmd clean package
+```
 
-For detailed Docker deployment instructions, see [SIMPLE_DEPLOYMENT.md](SIMPLE_DEPLOYMENT.md).
+### Available Commands
 
-## 📚 API Documentation
+#### Backend Commands
+| Command | Description |
+|---------|-------------|
+| `.\mvnw.cmd clean compile` | Compile the project |
+| `.\mvnw.cmd clean package` | Create JAR file |
+| `.\mvnw.cmd spring-boot:run` | Run the application in development mode |
+| `.\mvnw.cmd test` | Run unit tests |
 
-### Main Endpoints
+#### Frontend Commands
+| Command | Description |
+|---------|-------------|
+| `npm start` | Start development server on http://localhost:3000 |
+| `npm run build` | Create optimized production build |
+| `npm test` | Run the test suite |
+| `npm run eject` | Eject from create-react-app (irreversible) |
+
+### Access Points
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| **Frontend Application** | http://localhost:3000 | Main user interface |
+| **Backend API** | http://localhost:8080/api | RESTful API endpoints |
+| **Health Check** | http://localhost:8080/actuator/health | Application health status |
+
+## API Documentation
+
+### Transformer Management Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/transformers` | Get all transformers |
+| `GET` | `/api/transformers` | Retrieve all transformers |
 | `GET` | `/api/transformers/{id}` | Get transformer by ID |
 | `POST` | `/api/transformers` | Create new transformer |
-| `PUT` | `/api/transformers/{id}` | Update transformer |
+| `PUT` | `/api/transformers/{id}` | Update existing transformer |
 | `DELETE` | `/api/transformers/{id}` | Delete transformer |
-| `POST` | `/api/transformers/{id}/images` | Upload transformer images |
-| `GET` | `/api/transformers/search` | Search transformers |
+| `GET` | `/api/transformers/search` | Search transformers with filters |
 
-### API Testing
+### Inspection Management Endpoints
 
-Access the interactive API documentation at:
-- **Swagger UI**: http://localhost:8080/swagger-ui.html (if enabled)
-- **Health Check**: http://localhost:8080/actuator/health
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/inspections` | Retrieve all inspections |
+| `GET` | `/api/inspections/{id}` | Get inspection by ID |
+| `POST` | `/api/inspections` | Create new inspection |
+| `PUT` | `/api/inspections/{id}` | Update existing inspection |
+| `DELETE` | `/api/inspections/{id}` | Delete inspection |
+| `GET` | `/api/inspections/transformer/{id}` | Get inspections for specific transformer |
+| `GET` | `/api/inspections/status/{status}` | Filter inspections by status |
+| `GET` | `/api/inspections/search` | Search inspections by query |
+| `GET` | `/api/inspections/statuses` | Get available inspection statuses |
 
-### Sample API Request
+### Image Management Endpoints
 
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/images/upload` | Upload image for transformer/inspection |
+| `GET` | `/api/images` | Get all images |
+| `GET` | `/api/images/transformer/{id}` | Get images for transformer |
+| `GET` | `/api/images/inspection/{id}` | Get images for inspection |
+| `DELETE` | `/api/images/{id}` | Delete image |
+
+### Sample API Requests
+
+#### Create a New Transformer
 ```javascript
-// Create a new transformer
 fetch('http://localhost:8080/api/transformers', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
-    name: 'Main Transformer Unit A',
+    transformerNo: 'TR-001',
     type: 'Distribution',
-    location: 'Substation 1',
+    location: 'Main Substation',
     capacity: '500kVA',
-    voltage: '11kV/400V'
+    voltage: '11kV/400V',
+    manufacturer: 'ABB'
   })
 })
 ```
 
-## 🎯 Key Features
+#### Create a New Inspection
+```javascript
+fetch('http://localhost:8080/api/inspections', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    inspectionNo: 'INS-001',
+    transformerId: 1,
+    branch: 'Maintenance',
+    inspectedDate: '2024-08-28T10:00:00',
+    status: 'IN_PROGRESS',
+    inspectedBy: 'John Doe',
+    notes: 'Routine inspection'
+  })
+})
+```
 
-### Transformer Management
-- **CRUD Operations** - Create, read, update, and delete transformer records
-- **Advanced Search** - Filter by multiple criteria (location, type, capacity, etc.)
-- **Data Validation** - Comprehensive input validation and error handling
-- **Bulk Operations** - Import/export transformer data
+### API Testing
+- **Health Check**: http://localhost:8080/actuator/health
+- **Swagger UI**: http://localhost:8080/swagger-ui.html (if enabled)
 
-### Image Management
-- **Secure Upload** - Support for multiple image formats (JPG, PNG, GIF)
-- **Image Preview** - Thumbnail generation and gallery view
-- **File Organization** - Organized storage with proper naming conventions
-- **Size Limits** - Configurable file size restrictions
-
-### User Interface
-- **Responsive Design** - Works on desktop, tablet, and mobile devices
-- **Modern UI** - Clean, professional interface using Bootstrap components
-- **Intuitive Navigation** - Easy-to-use routing and menu system
-- **Real-time Updates** - Dynamic content updates without page refresh
-
-## 🏗️ Project Architecture
+## Project Structure
 
 ```
 software-design-competetion/
-├── Front-end/                 # React.js Application
-│   ├── public/               # Static assets
-│   ├── src/                  # Source code
-│   │   ├── components/       # Reusable UI components
-│   │   ├── pages/           # Page components
-│   │   ├── layouts/         # Layout components
-│   │   └── utils/           # Utility functions
-│   ├── package.json         # Frontend dependencies
-│   └── .env                 # Frontend environment variables
-│
-├── Back-end/                 # Spring Boot Application
+├── Back-end/                         # Spring Boot Application
 │   └── software-design-project-final/
 │       ├── src/
-│       │   ├── main/java/   # Java source code
-│       │   └── main/resources/ # Configuration files
-│       ├── pom.xml          # Maven configuration
-│       └── .env             # Backend environment variables
+│       │   ├── main/
+│       │   │   ├── java/
+│       │   │   │   └── com/example/software_design_project_final/
+│       │   │   │       ├── controller/      # REST Controllers
+│       │   │   │       │   ├── TransformerController.java
+│       │   │   │       │   ├── InspectionController.java
+│       │   │   │       │   └── ImageController.java
+│       │   │   │       ├── service/         # Business Logic Layer
+│       │   │   │       │   ├── TransformerService.java
+│       │   │   │       │   ├── InspectionService.java
+│       │   │   │       │   └── ImageService.java
+│       │   │   │       ├── repository/      # Data Access Layer
+│       │   │   │       │   ├── TransformerRepository.java
+│       │   │   │       │   ├── InspectionRepository.java
+│       │   │   │       │   └── ImageRepository.java
+│       │   │   │       ├── dao/             # Entity Classes
+│       │   │   │       │   ├── Transformer.java
+│       │   │   │       │   ├── Inspection.java
+│       │   │   │       │   └── Image.java
+│       │   │   │       ├── dto/             # Data Transfer Objects
+│       │   │   │       │   ├── TransformerRequest.java
+│       │   │   │       │   ├── TransformerResponse.java
+│       │   │   │       │   ├── InspectionRequest.java
+│       │   │   │       │   ├── InspectionResponse.java
+│       │   │   │       │   └── ImageResponse.java
+│       │   │   │       └── exception/       # Custom Exceptions
+│       │   │   └── resources/
+│       │   │       ├── application.properties
+│       │   │       └── db/migration/        # Database Migrations
+│       │   └── test/                        # Unit Tests
+│       ├── pom.xml                          # Maven Configuration
+│       └── .env                             # Backend Environment Variables
 │
-├── docker-compose.yml        # Docker configuration
-├── .env                     # Docker environment variables
-└── uploads/                 # File upload directory
+├── Front-end/                        # React.js Application
+│   ├── public/                       # Static Assets
+│   │   ├── index.html
+│   │   └── favicon.ico
+│   ├── src/
+│   │   ├── components/               # Reusable UI Components
+│   │   │   ├── TransformerTable.jsx
+│   │   │   ├── InspectionTable.jsx
+│   │   │   ├── AddInspectionModal.jsx
+│   │   │   ├── EditInspectionModal.jsx
+│   │   │   ├── InspectionHeader.jsx
+│   │   │   ├── Toolbar.jsx
+│   │   │   ├── CardTop.jsx
+│   │   │   └── Pager.jsx
+│   │   ├── pages/                    # Page Components
+│   │   │   ├── TransformersPage.jsx
+│   │   │   ├── InspectionsPage.jsx
+│   │   │   └── UploadPage.jsx
+│   │   ├── layouts/                  # Layout Components
+│   │   ├── utils/                    # Utility Functions
+│   │   │   └── config.js
+│   │   ├── App.js                    # Main App Component
+│   │   └── index.js                  # Application Entry Point
+│   ├── package.json                  # Frontend Dependencies
+│   └── .env                          # Frontend Environment Variables
+│
+├── uploads/                          # File Upload Directory
+│   └── images/
+├── .gitignore                        # Git Ignore Rules
+├── README.md                         # Project Documentation
+├── ENV_SETUP.md                      # Environment Setup Guide
+├── ENVIRONMENT_VARIABLES.md          # Environment Variables Reference
+└── SIMPLE_DEPLOYMENT.md              # Deployment Instructions
 ```
 
-## 🚀 Deployment
+## Database Schema
 
-### Local Development
-1. Start MySQL database
-2. Run backend: `cd Back-end/software-design-project-final && .\mvnw.cmd spring-boot:run`
-3. Run frontend: `cd Front-end && npm start`
+The application uses MySQL with the following main tables:
 
-### Production Deployment
-1. Build frontend: `cd Front-end && npm run build`
-2. Package backend: `cd Back-end/software-design-project-final && .\mvnw.cmd clean package`
-3. Deploy using Docker or traditional server setup
+### Core Tables
+- **transformers** - Main transformer asset data
+  - `id`, `transformer_no`, `type`, `location`, `capacity`, `voltage`, `manufacturer`
+  - `created_at`, `updated_at`
 
-### Access Points
-| Service | URL | Description |
-|---------|-----|-------------|
-| **Frontend** | http://localhost:3000 | Main user interface |
-| **Backend API** | http://localhost:8080/api | RESTful API endpoints |
-| **Health Check** | http://localhost:8080/actuator/health | Application health status |
+- **inspections** - Transformer inspection records
+  - `id`, `inspection_no`, `transformer_id` (FK), `branch`, `inspected_date`
+  - `maintenance_date`, `status`, `inspected_by`, `notes`
+  - `created_at`, `updated_at`
 
-## 🔧 Troubleshooting
+- **images** - Image metadata and references
+  - `id`, `filename`, `original_name`, `file_path`, `file_size`
+  - `transformer_id` (FK), `inspection_id` (FK), `env_condition`, `image_type`
+  - `created_at`, `updated_at`
 
-### Common Issues
+### Relationships
+- One-to-Many: Transformer → Inspections
+- One-to-Many: Transformer → Images
+- One-to-Many: Inspection → Images
+## Troubleshooting
+
+### Common Issues and Solutions
 
 #### Frontend Issues
+
+**Issue: npm install fails with dependency conflicts**
 ```powershell
 # Clear npm cache and reinstall dependencies
 npm cache clean --force
-rm -rf node_modules package-lock.json  # Linux/Mac
-rmdir /s node_modules & del package-lock.json  # Windows
+rmdir /s node_modules
+del package-lock.json
 npm install
 ```
 
+**Issue: React app doesn't start on port 3000**
+```powershell
+# Start on a different port
+set PORT=3001 && npm start
+```
+
+**Issue: API calls fail with CORS errors**
+- Verify the backend server is running on http://localhost:8080
+- Check that REACT_APP_API_BASE_URL is correctly set in `.env`
+- Ensure the backend CrossOrigin annotation includes your frontend URL
+
 #### Backend Issues
+
+**Issue: Java compilation fails**
 ```powershell
 # Clean and rebuild Maven project
 .\mvnw.cmd clean compile
 
 # Check Java version
 java --version
+```
 
-# Verify database connection
+**Issue: Application fails to start**
+- Verify Java 17+ is installed
+- Check that MySQL server is running
+- Validate database credentials in `.env` file
+- Ensure database `transformer_db` exists
+
+**Issue: Database connection errors**
+```powershell
+# Test MySQL connection
 mysql -u transformer_user -p -h localhost transformer_db
 ```
 
-#### Database Connection Issues
-1. Verify MySQL is running: `mysql -u root -p`
-2. Check database exists: `SHOW DATABASES;`
-3. Verify user permissions: `SHOW GRANTS FOR 'transformer_user'@'localhost';`
+#### Database Issues
 
-#### Port Conflicts
-- **Frontend (3000)**: Change port with `PORT=3001 npm start`
-- **Backend (8080)**: Update `APP_PORT` in `.env` file
+**Issue: Tables not created automatically**
+- Verify JPA/Hibernate configuration in `application.properties`
+- Check if Flyway migrations are properly configured
+- Ensure database user has proper privileges
 
-### Log Files
-- **Backend logs**: Check console output or configure logging in `application.properties`
-- **Frontend logs**: Check browser console for React errors
-- **Database logs**: Check MySQL error logs
+**Issue: Foreign key constraint errors**
+- Verify entity relationships in Java classes
+- Check that referenced entities exist before creating dependent records
 
-## 🤝 Contributing
+#### File Upload Issues
 
-We welcome contributions! Please follow these guidelines:
+**Issue: Image upload fails**
+- Check file upload directory permissions
+- Verify `FILE_UPLOAD_PATH` in backend `.env`
+- Ensure file size doesn't exceed `MAX_FILE_SIZE`
+- Confirm file type is in `ALLOWED_FILE_TYPES`
 
-### Development Workflow
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature-name`
-3. Make your changes following our coding standards
-4. Test your changes thoroughly
-5. Commit with clear messages: `git commit -m "Add: description of changes"`
-6. Push to your fork: `git push origin feature/your-feature-name`
-7. Create a Pull Request
+### Log Files and Debugging
 
-### Coding Standards
-- **Frontend**: Follow React best practices and ESLint rules
-- **Backend**: Follow Java coding conventions and Spring Boot guidelines
-- **Database**: Use proper naming conventions and indexing
+- **Backend logs**: Check console output for Spring Boot application
+- **Frontend logs**: Open browser developer tools console
+- **Database logs**: Check MySQL error logs for connection issues
+- **Network issues**: Use browser Network tab to inspect API requests
 
+### Performance Issues
 
+**Issue: Slow API responses**
+- Check database query performance
+- Verify proper indexing on frequently searched columns
+- Monitor memory usage of Spring Boot application
 
-## 👥 Support
+**Issue: Frontend rendering slowdowns**
+- Use React Developer Tools to identify performance bottlenecks
+- Check if large lists need pagination
+- Verify proper use of React.memo and useCallback
 
-For support and questions:
-- **Issues**: [GitHub Issues](https://github.com/NidulaGunawardana/software-design-competetion/issues)
-- **Documentation**: Check the `docs/` directory for detailed guides
-- **Wiki**: [Project Wiki](https://github.com/NidulaGunawardana/software-design-competetion/wiki)
+### Getting Help
 
-## 📚 Additional Resources
+- **Documentation**: Check `ENV_SETUP.md` and `ENVIRONMENT_VARIABLES.md`
+- **API Reference**: Use Swagger UI at http://localhost:8080/swagger-ui.html
+- **Database Schema**: Refer to entity classes in `src/main/java/.../dao/`
 
-- [Environment Setup Guide](ENV_SETUP.md)
-- [Environment Variables Reference](ENVIRONMENT_VARIABLES.md)
-- [Simple Deployment Guide](SIMPLE_DEPLOYMENT.md)
-- [API Configuration](Front-end/API_CONFIG.md)
-- [Backend README](Back-end/software-design-project-final/README_FK_FIX.md)
+---
+
+## Additional Resources
+
+- **[Environment Setup Guide](ENV_SETUP.md)** - Detailed environment configuration
+- **[Environment Variables Reference](ENVIRONMENT_VARIABLES.md)** - Complete variable documentation  
+- **[Simple Deployment Guide](SIMPLE_DEPLOYMENT.md)** - Docker deployment instructions
+
 

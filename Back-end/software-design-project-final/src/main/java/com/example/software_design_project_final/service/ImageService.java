@@ -2,10 +2,12 @@ package com.example.software_design_project_final.service;
 
 import com.example.software_design_project_final.dao.Image;
 import com.example.software_design_project_final.dao.Transformer;
+import com.example.software_design_project_final.dao.Inspection;
 import com.example.software_design_project_final.dto.ImageRequest;
 import com.example.software_design_project_final.dto.ImageResponse;
 import com.example.software_design_project_final.repository.ImageRepository;
 import com.example.software_design_project_final.repository.TransformerRepository;
+import com.example.software_design_project_final.repository.InspectionRepository;
 import com.example.software_design_project_final.config.FileStorageConfig;
 import com.example.software_design_project_final.exception.ResourceNotFoundException;
 import com.example.software_design_project_final.exception.FileStorageException;
@@ -41,6 +43,9 @@ public class ImageService {
     private TransformerRepository transformerRepository;
 
     @Autowired
+    private InspectionRepository inspectionRepository;
+
+    @Autowired
     private ModelMapper mapper;
 
     @Autowired
@@ -69,9 +74,31 @@ public class ImageService {
     public ImageResponse uploadImage(MultipartFile file, ImageRequest request) {
         validateFile(file);
 
-        // Find the transformer
-        Transformer transformer = transformerRepository.findById(request.getTransformerId())
-                .orElseThrow(() -> new ResourceNotFoundException("Transformer not found with id: " + request.getTransformerId()));
+        Transformer transformer = null;
+        Inspection inspection = null;
+
+        // If inspectionId is provided, get the inspection and its transformer
+        if (request.getInspectionId() != null) {
+            inspection = inspectionRepository.findById(request.getInspectionId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Inspection not found with id: " + request.getInspectionId()));
+            transformer = inspection.getTransformer(); // Get transformer from inspection
+        }
+        
+        // If transformerId is also provided (or only provided), validate it matches
+        if (request.getTransformerId() != null) {
+            Transformer requestedTransformer = transformerRepository.findById(request.getTransformerId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Transformer not found with id: " + request.getTransformerId()));
+            
+            if (transformer != null && !transformer.getId().equals(requestedTransformer.getId())) {
+                throw new IllegalArgumentException("Transformer ID does not match the transformer associated with the inspection");
+            }
+            transformer = requestedTransformer;
+        }
+
+        // Ensure we have a transformer (either from inspection or direct ID)
+        if (transformer == null) {
+            throw new IllegalArgumentException("No transformer found. Either provide transformerId or inspectionId with valid transformer association.");
+        }
 
         // Generate unique filename
         String originalFileName = file.getOriginalFilename();
@@ -86,6 +113,7 @@ public class ImageService {
             // Create and save image metadata
             Image image = new Image();
             image.setTransformer(transformer);
+            image.setInspection(inspection); // Set inspection if provided
             image.setFileName(originalFileName);
             image.setFilePath(uniqueFileName);
             image.setFileType(file.getContentType());
@@ -117,6 +145,16 @@ public class ImageService {
     @Transactional(readOnly = true)
     public List<ImageResponse> getImagesByTransformerId(Integer transformerId) {
         return imageRepository.findByTransformerId(transformerId).stream()
+                .map(this::convertToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get images by inspection ID
+     */
+    @Transactional(readOnly = true)
+    public List<ImageResponse> getImagesByInspectionId(Integer inspectionId) {
+        return imageRepository.findByInspectionId(inspectionId).stream()
                 .map(this::convertToResponse)
                 .collect(Collectors.toList());
     }
