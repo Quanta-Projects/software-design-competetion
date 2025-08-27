@@ -1,9 +1,9 @@
 # Environment Variables - Sensitive Data
-.env
-.env.local
-.env.production
-.env.staging
-*.env
+# .env
+# .env.local
+# .env.production
+# .env.staging
+# *.env
 
 # Docker Compose Override Files
 docker-compose.override.yml
