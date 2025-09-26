@@ -225,25 +225,25 @@ df = pd.DataFrame(all_rows)
 csv_path = os.path.join(out_dir, "detections.csv")
 df.to_csv(csv_path, index=False)
 
-# Show previews
-figs = []
-for p in img_paths:
-    base = os.path.splitext(os.path.basename(p))[0]
-    out_path = os.path.join(out_dir, f"{base}_annotated.jpg")
-    if os.path.exists(out_path):
-        img = np.array(Image.open(out_path))
-        plt.figure(figsize=(6,6))
-        plt.imshow(img)
-        plt.axis("off")
-        plt.title(base)
-        plt.show()
+# # Show previews
+# figs = []
+# for p in img_paths:
+#     base = os.path.splitext(os.path.basename(p))[0]
+#     out_path = os.path.join(out_dir, f"{base}_annotated.jpg")
+#     if os.path.exists(out_path):
+#         img = np.array(Image.open(out_path))
+#         plt.figure(figsize=(6,6))
+#         plt.imshow(img)
+#         plt.axis("off")
+#         plt.title(base)
+#         plt.show()
 
-import caas_jupyter_tools as cj
-try:
-    if not df.empty:
-        cj.display_dataframe_to_user("Thermal Fault Detections", df)
-except Exception as e:
-    pass
+# import caas_jupyter_tools as cj
+# try:
+#     if not df.empty:
+#         cj.display_dataframe_to_user("Thermal Fault Detections", df)
+# except Exception as e:
+#     pass
 
 print("Saved annotated images to:", out_dir)
 print("Detections table:", csv_path)
