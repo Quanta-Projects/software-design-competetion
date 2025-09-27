@@ -95,3 +95,11 @@ Desktop.ini
 
 # Linux
 *~
+
+ai-anomaly-service/venv/
+
+*.pt
+
+*results
+*dataset
+*runs
