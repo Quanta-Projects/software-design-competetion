@@ -188,7 +188,7 @@ export default function UploadPage() {
             // One or both images missing - update message and stay on upload page
             let message = "";
             if (!hasBaseline && !hasMaintenance) {
-              message = "Baseline image uploaded successfully! Please upload a Maintenance image to enable comparison.";
+              message = "Please upload both Baseline and Maintenance images to enable comparison.";
             } else if (!hasBaseline) {
               message = "Maintenance image uploaded successfully! Please upload a Baseline image to enable comparison.";
             } else if (!hasMaintenance) {

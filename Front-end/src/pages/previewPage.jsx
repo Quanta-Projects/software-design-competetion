@@ -543,7 +543,7 @@ export default function PreviewPage() {
       setContainerHeight(DEFAULT_PREVIEW_HEIGHT);
     };
     img.src = imgUrl;
-  }, [images, uploadedImage, resolveImageUrl, findLatestByType, getUploadedAt, uploadedImage]);
+  }, [images, uploadedImage, resolveImageUrl, findLatestByType, getUploadedAt]);
 
   const comparisonSources = (() => {
     if (!images.length) return { baseline: null, current: null };
@@ -1127,8 +1127,8 @@ export default function PreviewPage() {
             <div className="flex-grow-1">
               {/* Temperature Difference */}
               <div className="mb-4">
-                <h6 className="fw-bold mb-2" style={{ fontSize: "1.1rem" }}>Temperature Dereference</h6>
-                <p className="text-muted small mb-3">Temperature deference between baseline and maintenance images.</p>
+                <h6 className="fw-bold mb-2" style={{ fontSize: "1.1rem" }}>Temperature Difference</h6>
+                <p className="text-muted small mb-3">Temperature difference between baseline and maintenance images.</p>
                 <Form.Select 
                   value={tempDifference} 
                   onChange={(e) => setTempDifference(e.target.value)}
