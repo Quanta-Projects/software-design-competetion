@@ -500,6 +500,22 @@ export default function PreviewPage() {
         return tb - ta;
       })[0] || null;
 
+  // Find the best maintenance image - prioritize ANNOTATED over MAINTENANCE
+  const findBestMaintenanceImage = () => {
+    // First try to find an annotated image
+    const annotatedImage = findLatestByType("ANNOTATED");
+    if (annotatedImage) {
+      console.log("Preview: Using ANNOTATED image for maintenance view:", annotatedImage.fileName);
+      return annotatedImage;
+    }
+    // Fallback to regular maintenance image
+    const maintenanceImage = findLatestByType("MAINTENANCE");
+    if (maintenanceImage) {
+      console.log("Preview: Using MAINTENANCE image (no annotated version found):", maintenanceImage.fileName);
+    }
+    return maintenanceImage;
+  };
+
   // Calculate dynamic container height based on image dimensions
   useEffect(() => {
     const baseline = uploadedImage?.imageType?.toUpperCase() === "BASELINE" 
@@ -507,7 +523,7 @@ export default function PreviewPage() {
       : findLatestByType("BASELINE");
     const current = uploadedImage?.imageType?.toUpperCase() !== "BASELINE" && uploadedImage
       ? uploadedImage 
-      : findLatestByType("MAINTENANCE");
+      : findBestMaintenanceImage();
 
     // Get the image URL to load
     const imageToMeasure = baseline || current;
@@ -543,18 +559,22 @@ export default function PreviewPage() {
       setContainerHeight(DEFAULT_PREVIEW_HEIGHT);
     };
     img.src = imgUrl;
-  }, [images, uploadedImage, resolveImageUrl, findLatestByType, getUploadedAt]);
+  }, [images, uploadedImage, resolveImageUrl, findLatestByType, findBestMaintenanceImage, getUploadedAt]);
 
   const comparisonSources = (() => {
     if (!images.length) return { baseline: null, current: null };
     if (uploadedImage) {
       const type = (uploadedImage.imageType || "").toUpperCase();
       if (type === "BASELINE") {
-        return { baseline: uploadedImage, current: findLatestByType("MAINTENANCE") };
+        return { baseline: uploadedImage, current: findBestMaintenanceImage() };
+      }
+      // If uploaded image is MAINTENANCE or ANNOTATED, use it as current
+      if (type === "MAINTENANCE" || type === "ANNOTATED") {
+        return { baseline: findLatestByType("BASELINE"), current: uploadedImage };
       }
       return { baseline: findLatestByType("BASELINE"), current: uploadedImage };
     }
-    return { baseline: findLatestByType("BASELINE"), current: findLatestByType("MAINTENANCE") };
+    return { baseline: findLatestByType("BASELINE"), current: findBestMaintenanceImage() };
   })();
 
   // Set initial weather condition from maintenance image
@@ -564,6 +584,36 @@ export default function PreviewPage() {
       setWeatherCondition(maintenanceImg.envCondition.toUpperCase());
     }
   }, [comparisonSources.current]);
+
+  // Helper function to determine severity level
+  const getSeverityLevel = (className) => {
+    const classLower = className.toLowerCase();
+    if (classLower.includes('faulty') || classLower.includes('critical')) {
+      return 'CRITICAL';
+    } else if (classLower.includes('potential') || classLower.includes('warning')) {
+      return 'HIGH';
+    } else if (classLower.includes('cooling') || classLower.includes('moderate')) {
+      return 'MEDIUM';
+    } else {
+      return 'LOW';
+    }
+  };
+
+  // Helper function to get severity color
+  const getSeverityColor = (severityLevel) => {
+    switch (severityLevel) {
+      case 'CRITICAL':
+        return '#dc3545'; // Red
+      case 'HIGH':
+        return '#fd7e14'; // Orange
+      case 'MEDIUM':
+        return '#ffc107'; // Yellow
+      case 'LOW':
+        return '#28a745'; // Green
+      default:
+        return '#6c757d'; // Gray
+    }
+  };
 
   // Fetch anomaly errors from backend
   useEffect(() => {
@@ -592,59 +642,74 @@ export default function PreviewPage() {
         /*
          * BACKEND ENDPOINT DOCUMENTATION:
          * 
-         * Endpoint: GET /api/anomalies/inspection/{inspectionId}
-         * or: GET /api/anomalies/transformer/{transformerId}/inspection/{inspectionId}
+         * Endpoint: GET /api/annotations/inspection/{inspectionId}
          * 
          * Expected Response (200 OK):
-         * {
-         *   "anomalies": [
-         *     {
-         *       "id": "string",
-         *       "errorType": "string",           // e.g., "Thermal Anomaly", "Loose Joint"
-         *       "timestamp": "2025-08-15T10:15:00Z",
-         *       "detectedBy": "AI" | "Mark Henry",
-         *       "description": "string",         // Optional: error description
-         *       "notes": [                        // Optional: array of notes for this error
-         *         {
-         *           "id": "note-1",
-         *           "text": "This needs immediate attention",
-         *           "timestamp": "2025-08-15T10:20:00Z"
-         *         },
-         *         {
-         *           "id": "note-2",
-         *           "text": "Scheduled for repair",
-         *           "timestamp": "2025-08-15T10:25:00Z"
-         *         }
-         *       ]
-         *     }
-         *   ]
-         * }
+         * [
+         *   {
+         *     "id": number,
+         *     "imageId": number,
+         *     "classId": number,
+         *     "className": "string",           // e.g., "Thermal Anomaly", "Cooling Issue"
+         *     "confidenceScore": number,       // 0.0 to 1.0
+         *     "bboxX1": number, "bboxY1": number, "bboxX2": number, "bboxY2": number,
+         *     "centerX": number, "centerY": number,
+         *     "width": number, "height": number,
+         *     "annotationType": "AUTO_DETECTED" | "USER_ADDED" | "USER_EDITED",
+         *     "userId": "string",
+         *     "comments": "string",
+         *     "createdAt": "2025-08-15T10:15:00",
+         *     "updatedAt": "2025-08-15T10:15:00",
+         *     "isActive": boolean
+         *   }
+         * ]
          */
         const response = await fetch(
-          getRestApiUrl(`anomalies/inspection/${inspectionId}`),
+          getRestApiUrl(`annotations/inspection/${inspectionId}`),
           { method: 'GET' }
         );
 
         if (response.ok) {
-          const data = await response.json();
-          setAnomalyErrors(data.anomalies || []);
+          const annotations = await response.json();
           
-          // Load existing notes from the response
-          if (data.anomalies && data.anomalies.length > 0) {
-            const notesMap = {};
-            data.anomalies.forEach(anomaly => {
-              if (anomaly.notes && anomaly.notes.length > 0) {
-                notesMap[anomaly.id] = anomaly.notes;
-              }
-            });
-            setErrorNotes(notesMap);
-          }
+          // Transform annotations to anomaly error format for display
+          const transformedAnomalies = annotations
+            .filter(annotation => annotation.isActive)
+            .map(annotation => ({
+              id: annotation.id,
+              errorType: annotation.className,
+              timestamp: annotation.createdAt,
+              detectedBy: annotation.annotationType === 'AUTO_DETECTED' ? 'AI' : 
+                         (annotation.userId || 'Manual Review'),
+              description: annotation.comments || `${annotation.className} detected with ${(annotation.confidenceScore * 100).toFixed(1)}% confidence`,
+              confidence: annotation.confidenceScore,
+              severityLevel: getSeverityLevel(annotation.className),
+              boundingBox: {
+                x1: annotation.bboxX1,
+                y1: annotation.bboxY1,
+                x2: annotation.bboxX2,
+                y2: annotation.bboxY2
+              },
+              center: {
+                x: annotation.centerX,
+                y: annotation.centerY
+              },
+              dimensions: {
+                width: annotation.width,
+                height: annotation.height
+              },
+              imageId: annotation.imageId,
+              annotationType: annotation.annotationType
+            }));
+
+          setAnomalyErrors(transformedAnomalies);
+          console.log(`Loaded ${transformedAnomalies.length} detected anomalies from database`);
         } else {
-          console.log('No anomaly data available yet');
+          console.log('No anomaly annotations available for this inspection');
           setAnomalyErrors([]);
         }
       } catch (err) {
-        console.error('Error fetching anomaly errors:', err);
+        console.error('Error fetching anomaly annotations:', err);
         setAnomalyErrors([]);
       } finally {
         setLoadingErrors(false);
@@ -781,9 +846,9 @@ export default function PreviewPage() {
                   />
                   <PanZoomContainFrame
                     src={resolveImageUrl(comparisonSources.current)}
-                    label="Current"
+                    label={comparisonSources.current?.imageType?.toUpperCase() === "ANNOTATED" ? "Current (Annotated)" : "Current"}
                     metaText={currentMeta}
-                    badgeColor="rgba(59,52,213,0.95)"
+                    badgeColor={comparisonSources.current?.imageType?.toUpperCase() === "ANNOTATED" ? "rgba(40,167,69,0.95)" : "rgba(59,52,213,0.95)"}
                     syncZoomOn={syncZoomOn}
                     isHoveringSync={isHoveringSync}
                     onSyncEnter={onSyncEnter}
@@ -958,7 +1023,7 @@ export default function PreviewPage() {
                             <span 
                               className="badge"
                               style={{
-                                backgroundColor: index === 0 ? "#dc3545" : "#c82333",
+                                backgroundColor: getSeverityColor(error.severityLevel),
                                 color: "white",
                                 fontSize: "0.85rem",
                                 padding: "6px 12px",
@@ -966,17 +1031,27 @@ export default function PreviewPage() {
                                 fontWeight: "600"
                               }}
                             >
-                              Error {index + 1}
+                              {error.severityLevel} #{index + 1}
                             </span>
-                            <span style={{ color: "#495057", fontSize: "0.95rem" }}>
-                              {new Date(error.timestamp).toLocaleString('en-US', {
-                                year: 'numeric',
-                                month: '2-digit',
-                                day: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })} - {error.detectedBy || 'AI'}
-                            </span>
+                            <div className="d-flex flex-column">
+                              <span style={{ color: "#495057", fontSize: "0.95rem", fontWeight: "500" }}>
+                                {error.errorType}
+                              </span>
+                              <span style={{ color: "#6c757d", fontSize: "0.8rem" }}>
+                                {new Date(error.timestamp).toLocaleString('en-US', {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })} • {error.detectedBy || 'AI'}
+                                {error.confidence && (
+                                  <span className="ms-2">
+                                    • {(error.confidence * 100).toFixed(1)}% confidence
+                                  </span>
+                                )}
+                              </span>
+                            </div>
                             <i 
                               className={`bi bi-chevron-${isExpanded ? 'up' : 'down'} ms-auto`}
                               style={{ color: "#6c757d" }}
@@ -986,22 +1061,66 @@ export default function PreviewPage() {
                           {/* Expanded Details - Show on Click */}
                           {isExpanded && (
                             <div className="mt-3 pt-3" style={{ borderTop: "1px solid #dee2e6" }}>
-                              {error.errorType && (
-                                <div className="mb-2">
-                                  <strong style={{ color: "#495057", fontSize: "0.9rem" }}>Type:</strong>
-                                  <span className="ms-2" style={{ color: "#6c757d", fontSize: "0.9rem" }}>
-                                    {error.errorType}
-                                  </span>
+                              <div className="row">
+                                <div className="col-md-6">
+                                  {error.description && (
+                                    <div className="mb-3">
+                                      <strong style={{ color: "#495057", fontSize: "0.9rem" }}>Description:</strong>
+                                      <p className="mb-0 mt-1" style={{ color: "#6c757d", fontSize: "0.9rem" }}>
+                                        {error.description}
+                                      </p>
+                                    </div>
+                                  )}
+                                  <div className="mb-2">
+                                    <strong style={{ color: "#495057", fontSize: "0.9rem" }}>Detection Type:</strong>
+                                    <span className="ms-2" style={{ color: "#6c757d", fontSize: "0.9rem" }}>
+                                      <i className={`bi ${error.annotationType === 'AUTO_DETECTED' ? 'bi-cpu' : 'bi-person'} me-1`}></i>
+                                      {error.annotationType === 'AUTO_DETECTED' ? 'AI Detection' : 'Manual Detection'}
+                                    </span>
+                                  </div>
+                                  {error.confidence && (
+                                    <div className="mb-2">
+                                      <strong style={{ color: "#495057", fontSize: "0.9rem" }}>Confidence:</strong>
+                                      <span className="ms-2" style={{ color: "#6c757d", fontSize: "0.9rem" }}>
+                                        {(error.confidence * 100).toFixed(1)}%
+                                      </span>
+                                      <div className="progress mt-1" style={{ height: "4px" }}>
+                                        <div 
+                                          className="progress-bar" 
+                                          style={{ 
+                                            width: `${error.confidence * 100}%`,
+                                            backgroundColor: error.confidence > 0.8 ? "#28a745" : error.confidence > 0.6 ? "#ffc107" : "#dc3545"
+                                          }}
+                                        ></div>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                              {error.description && (
-                                <div className="mb-3">
-                                  <strong style={{ color: "#495057", fontSize: "0.9rem" }}>Description:</strong>
-                                  <p className="mb-0 mt-1" style={{ color: "#6c757d", fontSize: "0.9rem" }}>
-                                    {error.description}
-                                  </p>
+                                <div className="col-md-6">
+                                  {error.boundingBox && (
+                                    <div className="mb-3">
+                                      <strong style={{ color: "#495057", fontSize: "0.9rem" }}>Location:</strong>
+                                      <div className="mt-1" style={{ fontSize: "0.8rem", color: "#6c757d" }}>
+                                        <div>Bounding Box: ({error.boundingBox.x1?.toFixed(1)}, {error.boundingBox.y1?.toFixed(1)}) to ({error.boundingBox.x2?.toFixed(1)}, {error.boundingBox.y2?.toFixed(1)})</div>
+                                        {error.center && (
+                                          <div>Center: ({error.center.x?.toFixed(1)}, {error.center.y?.toFixed(1)})</div>
+                                        )}
+                                        {error.dimensions && (
+                                          <div>Size: {error.dimensions.width?.toFixed(1)} × {error.dimensions.height?.toFixed(1)}</div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {error.imageId && (
+                                    <div className="mb-2">
+                                      <strong style={{ color: "#495057", fontSize: "0.9rem" }}>Image ID:</strong>
+                                      <span className="ms-2" style={{ color: "#6c757d", fontSize: "0.9rem" }}>
+                                        #{error.imageId}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
-                              )}
+                              </div>
                               {notes.length > 0 && (
                                 <div className="mt-3">
                                   <strong style={{ color: "#495057", fontSize: "0.9rem" }}>Notes:</strong>

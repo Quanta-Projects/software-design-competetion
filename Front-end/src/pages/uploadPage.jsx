@@ -105,9 +105,15 @@ export default function UploadPage() {
   );
 
   // ---------------------------
-  // Upload (fire-and-forget, with real abort using XHR)
+  // Upload with Anomaly Detection Integration
   // ---------------------------
-  const uploadToBackend = (formData) => {
+  const uploadToBackend = async (formData) => {
+    // Validate formData
+    if (!formData) {
+      setError("No form data provided");
+      return;
+    }
+
     // Get transformerId from either state or loaded inspection data
     const effectiveTransformerId = transformerId || (inspection?.transformerId);
     
@@ -120,30 +126,111 @@ export default function UploadPage() {
     if (!formData.has("envCondition")) formData.append("envCondition", "SUNNY");
     if (!formData.has("imageType")) formData.append("imageType", "BASELINE");
 
-    setTimeout(() => {
-      setIsUploading(true);
-      setProgress(0);
-      setError(null);
+    // Step 1: First detect anomalies using AI service
+    const imageFile = formData.get('file');
+    if (!imageFile) {
+      setError("No image file found in form data");
+      return;
+    }
+    
+    console.log("Processing image file:", imageFile.name, "Size:", imageFile.size);
+    
+    // Keep the original 'file' field for FastAPI, but add 'image' field for Spring Boot
+    formData.append('image', imageFile);  // Spring Boot expects 'image'
 
+    let anomalyDetectionResult = null;
+    let annotatedImageBlob = null;
+
+    setIsUploading(true);
+    setProgress(10);
+    setError(null);
+
+    // Get the image type from form data
+    const imageType = formData.get('imageType')?.toUpperCase();
+    console.log("Image type:", imageType);
+
+    try {
+      // Only run anomaly detection for MAINTENANCE images
+      if (imageType === 'MAINTENANCE') {
+        // Send image to anomaly detection service (FastAPI expects 'file')
+        const detectionFormData = new FormData();
+        detectionFormData.append('file', imageFile);
+        detectionFormData.append('confidence_threshold', '0.25');
+
+        console.log("Sending MAINTENANCE image to anomaly detection service...");
+        console.log("Image file name:", imageFile.name);
+        console.log("Image file size:", imageFile.size);
+        setProgress(25);
+
+        const detectionResponse = await fetch('http://127.0.0.1:8001/detect-thermal-anomalies', {
+          method: 'POST',
+          body: detectionFormData
+        });
+
+        if (detectionResponse.ok) {
+          const result = await detectionResponse.json();
+          if (result && result.success) {
+            anomalyDetectionResult = result;
+            console.log("Detection results:", anomalyDetectionResult);
+            
+            // Convert base64 annotated image to blob
+            if (result.annotated_image_base64) {
+              try {
+                const base64Response = await fetch(`data:image/jpeg;base64,${result.annotated_image_base64}`);
+                annotatedImageBlob = await base64Response.blob();
+              } catch (base64Error) {
+                console.warn("Failed to process annotated image:", base64Error);
+              }
+            }
+          } else {
+            console.warn("Detection returned unsuccessful result:", result);
+          }
+          setProgress(50);
+        } else {
+          const errorText = await detectionResponse.text();
+          console.warn(`Anomaly detection failed (${detectionResponse.status}):`, errorText);
+          setProgress(50);
+        }
+      } else {
+        console.log("Skipping anomaly detection for", imageType, "image type. Anomaly detection only runs on MAINTENANCE images.");
+        setProgress(50);
+      }
+    } catch (error) {
+      console.warn("Anomaly detection service unavailable:", error);
+      console.warn("This could be due to model loading issues or service being offline");
+      setProgress(50);
+    }
+
+    // Step 2: Upload original image to backend
+    setTimeout(() => {
       const xhr = new XMLHttpRequest();
+      if (!xhr) {
+        setError("Failed to create upload request");
+        setIsUploading(false);
+        return;
+      }
+      
       xhrRef.current = xhr;
 
       xhr.open("POST", getRestApiUrl("images/upload"));
 
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          const pct = Math.round((e.loaded / e.total) * 100);
-          setProgress(Math.min(100, Math.max(0, pct)));
-        }
-      };
+      if (xhr.upload) {
+        xhr.upload.onprogress = (e) => {
+          if (e && e.lengthComputable && e.total > 0) {
+            const uploadPct = Math.round((e.loaded / e.total) * 40);
+            setProgress(Math.min(90, Math.max(50, 50 + uploadPct)));
+          }
+        };
+      }
 
       xhr.onload = async () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          setProgress(100);
+          setProgress(90);
 
           let uploaded = null;
           try { uploaded = JSON.parse(xhr.responseText || "{}"); } catch {}
 
+          // Step 3: Save anomaly detection results and upload annotated image
           let newImages = [];
           try {
             // Get effective transformerId for API calls
@@ -164,35 +251,125 @@ export default function UploadPage() {
                 uploaded = latest || uploaded;
               }
             }
+
+            // Step 4: Save annotations if detection was successful
+            if (anomalyDetectionResult && anomalyDetectionResult.success && uploaded?.id) {
+              console.log("Saving annotations for image ID:", uploaded.id);
+              
+              try {
+                // Convert YOLO detections to annotation format
+                const annotationRequests = anomalyDetectionResult.detections.map(detection => ({
+                  imageId: uploaded.id,
+                  classId: detection.class_id,
+                  className: detection.class_name,
+                  confidenceScore: detection.confidence,
+                  bboxX1: detection.bbox[0],
+                  bboxY1: detection.bbox[1],
+                  bboxX2: detection.bbox[2],
+                  bboxY2: detection.bbox[3],
+                  annotationType: "AUTO_DETECTED",
+                  userId: "system",
+                  comments: `Auto-detected with confidence ${detection.confidence.toFixed(3)}`
+                }));
+
+                // Save annotations to backend
+                const annotationsResponse = await fetch(getRestApiUrl(`annotations/batch/${uploaded.id}`), {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(annotationRequests)
+                });
+
+                if (annotationsResponse.ok) {
+                  console.log("Annotations saved successfully");
+                } else {
+                  console.warn("Failed to save annotations:", await annotationsResponse.text());
+                }
+
+                // Step 5: Upload annotated image if available
+                if (annotatedImageBlob && uploaded.id) {
+                  const annotatedFormData = new FormData();
+                  annotatedFormData.append('image', annotatedImageBlob, `${uploaded.fileName}_annotated.jpg`);
+                  annotatedFormData.append('transformerId', effectiveTransformerId);
+                  if (inspectionId) annotatedFormData.append('inspectionId', inspectionId);
+                  annotatedFormData.append('envCondition', formData.get('envCondition') || 'SUNNY');
+                  annotatedFormData.append('imageType', 'ANNOTATED');
+
+                  const annotatedUploadResponse = await fetch(getRestApiUrl("images/upload"), {
+                    method: 'POST',
+                    body: annotatedFormData
+                  });
+
+                  if (annotatedUploadResponse.ok) {
+                    console.log("Annotated image uploaded successfully");
+                    // Refresh image list to include annotated image
+                    const refreshedImagesRes = await fetch(getRestApiUrl(imagesEndpoint));
+                    if (refreshedImagesRes.ok) {
+                      const refreshedImages = await refreshedImagesRes.json();
+                      setImages(refreshedImages);
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error("Error saving annotations:", error);
+              }
+            }
           } catch {}
 
+          setProgress(100);
           setIsUploading(false);
-          setProgress(0);
+          setTimeout(() => setProgress(0), 1000);
           xhrRef.current = null;
 
           // Check if both Baseline and Maintenance images are available
           const hasBaseline = newImages.some(img => img.imageType?.toUpperCase() === "BASELINE");
           const hasMaintenance = newImages.some(img => img.imageType?.toUpperCase() === "MAINTENANCE");
 
-          // Only navigate to preview if both images are available
-          if (hasBaseline && hasMaintenance) {
-            // Both images available - go to preview page
-            navigate("/preview", { 
-              state: { 
-                transformerId: transformerId || (inspection?.transformerId), 
-                inspectionId,
-                uploadedImage: uploaded 
-              } 
-            });
+          // Show success message with anomaly detection results
+          let message = "";
+          if (anomalyDetectionResult && anomalyDetectionResult.success) {
+            const detectionCount = anomalyDetectionResult.total_detections;
+            const severityLevel = anomalyDetectionResult.severity_level;
+            message = `Image uploaded successfully! AI detected ${detectionCount} thermal anomalies (${severityLevel} severity). `;
+          } else {
+            message = "Image uploaded successfully! ";
+          }
+
+          // Navigate to image viewer if anomaly detection was successful
+          if (anomalyDetectionResult && anomalyDetectionResult.success && uploaded?.id) {
+            message += "View and edit detected anomalies.";
+            setInfoMessage(message);
+            setShowInfoMessage(true);
+            
+            // Navigate to image viewer after a short delay to show the message
+            setTimeout(() => {
+              navigate(`/image-viewer/${uploaded.id}`);
+            }, 2000);
+          } else if (hasBaseline && hasMaintenance) {
+            message += "Both images are now available for comparison.";
+            setInfoMessage(message);
+            setShowInfoMessage(true);
+            
+            // Navigate to preview page after a short delay to show the message
+            setTimeout(() => {
+              navigate("/preview", { 
+                state: { 
+                  transformerId: transformerId || (inspection?.transformerId), 
+                  inspectionId,
+                  uploadedImage: uploaded,
+                  anomalyDetection: anomalyDetectionResult
+                } 
+              });
+            }, 2000);
           } else {
             // One or both images missing - update message and stay on upload page
-            let message = "";
             if (!hasBaseline && !hasMaintenance) {
-              message = "Please upload both Baseline and Maintenance images to enable comparison.";
+              message += "Please upload both Baseline and Maintenance images to enable comparison.";
             } else if (!hasBaseline) {
-              message = "Maintenance image uploaded successfully! Please upload a Baseline image to enable comparison.";
+              message += "Please upload a Baseline image to enable comparison.";
             } else if (!hasMaintenance) {
-              message = "Baseline image uploaded successfully! Please upload a Maintenance image to enable comparison.";
+              message += "Please upload a Maintenance image to enable comparison.";
             }
             
             setInfoMessage(message);
@@ -204,7 +381,15 @@ export default function UploadPage() {
           return;
         } else {
           let msg = `Upload failed (${xhr.status})`;
-          try { const t = xhr.responseText || ""; if (t) msg += `: ${t}`; } catch {}
+          try { 
+            const t = xhr.responseText || ""; 
+            if (t) msg += `: ${t}`;
+            console.error("Upload error details:", {
+              status: xhr.status,
+              statusText: xhr.statusText,
+              response: t
+            });
+          } catch {}
           alert(msg);
         }
 
@@ -235,6 +420,12 @@ export default function UploadPage() {
 
   const handleCancelUpload = () => {
     try { xhrRef.current?.abort(); } catch {}
+  };
+
+  // Simple annotation viewing
+  const handleViewAnnotations = (image) => {
+    // For now, just show a simple alert - can be enhanced later
+    alert(`Viewing annotations for ${image.fileName}\nThis feature will be implemented to show AI-detected anomalies.`);
   };
 
   const handleImageDelete = async (imageId) => {
@@ -429,13 +620,23 @@ export default function UploadPage() {
                                     File Type: {image.fileType} | Size: {image.fileSize ? Math.round(image.fileSize / 1024) + " KB" : "Unknown"}
                                   </div>
                                 </div>
-                                <Button
-                                  variant="outline-danger"
-                                  size="sm"
-                                  onClick={() => handleImageDelete(image.id)}
-                                >
-                                  Delete
-                                </Button>
+                                <div className="d-flex gap-2">
+                                  <Button
+                                    variant="outline-primary"
+                                    size="sm"
+                                    onClick={() => handleViewAnnotations(image)}
+                                  >
+                                    <i className="bi bi-eye me-1"></i>
+                                    View Annotations
+                                  </Button>
+                                  <Button
+                                    variant="outline-danger"
+                                    size="sm"
+                                    onClick={() => handleImageDelete(image.id)}
+                                  >
+                                    Delete
+                                  </Button>
+                                </div>
                               </div>
                               {image.filePath && (
                                 <div className="mt-2">

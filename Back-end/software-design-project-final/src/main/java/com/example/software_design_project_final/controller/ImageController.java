@@ -40,11 +40,18 @@ public class ImageController {
      */
     @PostMapping("/upload")
     public ResponseEntity<ImageResponse> uploadImage(
-            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "image", required = false) MultipartFile image,
             @RequestParam(value = "transformerId", required = false) Integer transformerId,
             @RequestParam(value = "inspectionId", required = false) Integer inspectionId,
             @RequestParam("envCondition") Image.EnvironmentalCondition envCondition,
             @RequestParam("imageType") Image.ImageType imageType) {
+
+        // Handle both 'file' and 'image' parameters (frontend sends both)
+        MultipartFile uploadFile = file != null ? file : image;
+        if (uploadFile == null) {
+            throw new IllegalArgumentException("No file provided for upload");
+        }
 
         // Validation: Either transformerId or inspectionId must be provided
         if (transformerId == null && inspectionId == null) {
@@ -57,7 +64,7 @@ public class ImageController {
         request.setEnvCondition(envCondition);
         request.setImageType(imageType);
 
-        ImageResponse response = imageService.uploadImage(file, request);
+        ImageResponse response = imageService.uploadImage(uploadFile, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -69,6 +76,16 @@ public class ImageController {
     public ResponseEntity<List<ImageResponse>> getAllImages() {
         List<ImageResponse> images = imageService.getAllImages();
         return ResponseEntity.ok(images);
+    }
+
+    /**
+     * Get image by ID
+     * GET /api/images/{id}
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<ImageResponse> getImageById(@PathVariable Integer id) {
+        ImageResponse image = imageService.getImageById(id);
+        return ResponseEntity.ok(image);
     }
 
     /**

@@ -8,6 +8,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Image Entity
@@ -53,14 +55,18 @@ public class Image {
     private EnvironmentalCondition envCondition;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "image_type", nullable = false)
-    private ImageType imageType; // BASELINE or MAINTENANCE
+    @Column(name = "image_type", nullable = false, length = 20)
+    private ImageType imageType; // BASELINE, MAINTENANCE, or ANNOTATED
 
     @Column(name = "upload_date")
     private LocalDateTime uploadDate;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    // One-to-many relationship with annotations - cascade delete to prevent foreign key constraints
+    @OneToMany(mappedBy = "image", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    private List<Annotation> annotations = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {
@@ -81,6 +87,6 @@ public class Image {
      * Image Type Enum
      */
     public enum ImageType {
-        BASELINE, MAINTENANCE
+        BASELINE, MAINTENANCE, ANNOTATED
     }
 }

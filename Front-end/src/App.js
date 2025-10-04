@@ -6,6 +6,8 @@ import InspectionsPage from './pages/InspectionsPage';
 import SettingsPage from "./pages/settingsPage";
 import UploadPage from './pages/uploadPage';
 import PreviewPage from './pages/previewPage';
+import ImageViewer from './pages/ImageViewer';
+import './styles/annotations.css';
 
 export default function App() {
   return (
@@ -18,6 +20,7 @@ export default function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/preview" element={<PreviewPage />} />
+          <Route path="/image-viewer/:imageId" element={<ImageViewer />} />
         </Route>
       </Routes>
     </Router>
