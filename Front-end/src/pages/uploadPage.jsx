@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Container, Button, Offcanvas, Alert, Row, Col, Card, Badge } from "react-bootstrap";
 import InspectionHeader from "../components/InspectionHeader";
 import ThermalImageUploader from "../components/thermalImageUploader";
-import { getApiUrl, getImageUrl } from "../utils/config";
+import { getRestApiUrl, getImageUrl } from "../utils/config";
 
 export default function UploadPage() {
   const location = useLocation();
@@ -43,8 +43,8 @@ export default function UploadPage() {
         if (inspectionId) {
           // Load inspection and its related data
           const [inspectionRes, imagesRes] = await Promise.all([
-            fetch(getApiUrl(`inspections/${inspectionId}`)),
-            fetch(getApiUrl(`images/inspection/${inspectionId}`)),
+            fetch(getRestApiUrl(`inspections/${inspectionId}`)),
+            fetch(getRestApiUrl(`images/inspection/${inspectionId}`)),
           ]);
 
           if (!inspectionRes.ok) throw new Error(`Failed to load inspection: ${inspectionRes.status}`);
@@ -53,7 +53,7 @@ export default function UploadPage() {
           const [inspectionData, imagesData] = await Promise.all([inspectionRes.json(), imagesRes.json()]);
 
           // Also load transformer data
-          const transformerRes = await fetch(getApiUrl(`transformers/${inspectionData.transformerId}`));
+          const transformerRes = await fetch(getRestApiUrl(`transformers/${inspectionData.transformerId}`));
           if (!transformerRes.ok) throw new Error(`Failed to load transformer: ${transformerRes.status}`);
           const transformerData = await transformerRes.json();
 
@@ -65,8 +65,8 @@ export default function UploadPage() {
         } else if (transformerId) {
           // Load transformer and its images
           const [transformerRes, imagesRes] = await Promise.all([
-            fetch(getApiUrl(`transformers/${transformerId}`)),
-            fetch(getApiUrl(`images/transformer/${transformerId}`)),
+            fetch(getRestApiUrl(`transformers/${transformerId}`)),
+            fetch(getRestApiUrl(`images/transformer/${transformerId}`)),
           ]);
 
           if (!transformerRes.ok) throw new Error(`Failed to load transformer: ${transformerRes.status}`);
@@ -128,7 +128,7 @@ export default function UploadPage() {
       const xhr = new XMLHttpRequest();
       xhrRef.current = xhr;
 
-      xhr.open("POST", getApiUrl("images/upload"));
+      xhr.open("POST", getRestApiUrl("images/upload"));
 
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) {
@@ -151,7 +151,7 @@ export default function UploadPage() {
             const imagesEndpoint = inspectionId ? 
               `images/inspection/${inspectionId}` : 
               `images/transformer/${effectiveTransformerId}`;
-            const imagesRes = await fetch(getApiUrl(imagesEndpoint));
+            const imagesRes = await fetch(getRestApiUrl(imagesEndpoint));
             if (imagesRes.ok) {
               newImages = await imagesRes.json();
               setImages(newImages);
@@ -240,7 +240,7 @@ export default function UploadPage() {
   const handleImageDelete = async (imageId) => {
     if (!window.confirm("Are you sure you want to delete this image?")) return;
     try {
-      const res = await fetch(getApiUrl(`images/${imageId}`), { method: "DELETE" });
+      const res = await fetch(getRestApiUrl(`images/${imageId}`), { method: "DELETE" });
       if (res.ok) {
         setImages((prev) => prev.filter((img) => img.id !== imageId));
       } else {

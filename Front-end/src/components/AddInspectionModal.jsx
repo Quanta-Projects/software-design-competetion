@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Modal, Button, Form, Alert, Spinner } from "react-bootstrap";
-import { getApiUrl } from "../utils/config";
+import { getRestApiUrl } from "../utils/config";
 
 export default function AddInspectionModal({ 
   show, 
@@ -46,8 +46,8 @@ export default function AddInspectionModal({
     setLoadingData(true);
     try {
       const [transformersRes, statusesRes] = await Promise.all([
-        fetch(getApiUrl("transformers")),
-        fetch(getApiUrl("inspections/statuses"))
+        fetch(getRestApiUrl("transformers")),
+        fetch(getRestApiUrl("inspections/statuses"))
       ]);
 
       if (transformersRes.ok && statusesRes.ok) {
@@ -88,7 +88,7 @@ export default function AddInspectionModal({
         maintenanceDate: formData.maintenanceDate ? new Date(formData.maintenanceDate).toISOString() : null
       };
 
-      const response = await fetch(getApiUrl("inspections"), {
+      const response = await fetch(getRestApiUrl("inspections"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

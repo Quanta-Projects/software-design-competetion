@@ -11,7 +11,7 @@ import InspectionTable from "../components/InspectionTable";
 import Pager from "../components/pager";
 import AddInspectionModal from "../components/AddInspectionModal";
 import EditInspectionModal from "../components/EditInspectionModal";
-import { getApiUrl } from "../utils/config";
+import { getRestApiUrl } from "../utils/config";
 
 export default function InspectionsPage() {
   const location = useLocation();
@@ -40,9 +40,9 @@ export default function InspectionsPage() {
       try {
         let inspectionsUrl;
         if (transformerId) {
-          inspectionsUrl = getApiUrl(`inspections/transformer/${transformerId}`);
+          inspectionsUrl = getRestApiUrl(`inspections/transformer/${transformerId}`);
         } else {
-          inspectionsUrl = getApiUrl("inspections");
+          inspectionsUrl = getRestApiUrl("inspections");
         }
 
         const inspectionsRes = await fetch(inspectionsUrl);
@@ -185,7 +185,7 @@ export default function InspectionsPage() {
 
     try {
       // Fetch images for this transformer to check availability
-      const imagesRes = await fetch(getApiUrl(`images/transformer/${inspection.transformerId}`));
+      const imagesRes = await fetch(getRestApiUrl(`images/transformer/${inspection.transformerId}`));
       
       if (!imagesRes.ok) {
         throw new Error(`Failed to fetch images: ${imagesRes.status}`);
@@ -260,7 +260,7 @@ export default function InspectionsPage() {
   const handleDeleteInspection = async (inspection) => {
     if (window.confirm(`Are you sure you want to delete inspection ${inspection.inspectionNumber}?`)) {
       try {
-        const response = await fetch(getApiUrl(`inspections/${inspection.id}`), {
+        const response = await fetch(getRestApiUrl(`inspections/${inspection.id}`), {
           method: "DELETE"
         });
 

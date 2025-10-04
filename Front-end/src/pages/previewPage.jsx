@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Container, Button, Offcanvas, Alert, Card, Form } from "react-bootstrap";
 import InspectionHeader from "../components/InspectionHeader";
-import { getApiUrl, getImageUrl } from "../utils/config";
+import { getRestApiUrl, getImageUrl } from "../utils/config";
 
 const DEFAULT_PREVIEW_HEIGHT = 420;
 const MAX_PREVIEW_HEIGHT = 800;
@@ -269,7 +269,7 @@ export default function PreviewPage() {
 
     try {
       // Send settings to backend
-      const response = await fetch(getApiUrl('analysis/settings'), {
+      const response = await fetch(getRestApiUrl('analysis/settings'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -346,7 +346,7 @@ export default function PreviewPage() {
 
     // Send to backend
     try {
-      const response = await fetch(getApiUrl(`anomalies/${selectedErrorId}/notes`), {
+      const response = await fetch(getRestApiUrl(`anomalies/${selectedErrorId}/notes`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -402,7 +402,7 @@ export default function PreviewPage() {
     const maintenanceImg = comparisonSources.current;
     if (maintenanceImg && maintenanceImg.id) {
       try {
-        const response = await fetch(getApiUrl(`images/${maintenanceImg.id}/weather`), {
+        const response = await fetch(getRestApiUrl(`images/${maintenanceImg.id}/weather`), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -412,7 +412,7 @@ export default function PreviewPage() {
 
         if (response.ok) {
           // Reload images to reflect the change
-          const imagesRes = await fetch(getApiUrl(`images/transformer/${transformerId}`));
+          const imagesRes = await fetch(getRestApiUrl(`images/transformer/${transformerId}`));
           if (imagesRes.ok) {
             const updatedImages = await imagesRes.json();
             setImages(updatedImages);
@@ -451,8 +451,8 @@ export default function PreviewPage() {
         setError(null);
         setLoading(true);
         const [transformerRes, imagesRes] = await Promise.all([
-          fetch(getApiUrl(`transformers/${transformerId}`)),
-          fetch(getApiUrl(`images/transformer/${transformerId}`)),
+          fetch(getRestApiUrl(`transformers/${transformerId}`)),
+          fetch(getRestApiUrl(`images/transformer/${transformerId}`)),
         ]);
         if (!transformerRes.ok) throw new Error(`Failed to load transformer: ${transformerRes.status}`);
         if (!imagesRes.ok) throw new Error(`Failed to load images: ${imagesRes.status}`);
@@ -621,7 +621,7 @@ export default function PreviewPage() {
          * }
          */
         const response = await fetch(
-          getApiUrl(`anomalies/inspection/${inspectionId}`),
+          getRestApiUrl(`anomalies/inspection/${inspectionId}`),
           { method: 'GET' }
         );
 
@@ -683,7 +683,7 @@ export default function PreviewPage() {
     }
 
     try {
-      const response = await fetch(getApiUrl(`images/${baselineImage.id}`), {
+      const response = await fetch(getRestApiUrl(`images/${baselineImage.id}`), {
         method: 'DELETE',
       });
 
