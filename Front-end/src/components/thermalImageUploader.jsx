@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
 import { Card, Form, Button } from "react-bootstrap";
 
-export default function ThermalImageUploader({ onUpload }) {
+export default function ThermalImageUploader({ onUpload, defaultImageType }) {
   const fileRef = useRef(null);
   const [envCondition, setEnvCondition] = useState("SUNNY");
-  const [imageType, setImageType] = useState("BASELINE");
+  const [imageType, setImageType] = useState(defaultImageType || "BASELINE");
   const [fileName, setFileName] = useState("");
   const [uploading, setUploading] = useState(false);
 

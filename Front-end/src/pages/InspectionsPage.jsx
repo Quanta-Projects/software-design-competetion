@@ -174,9 +174,80 @@ export default function InspectionsPage() {
     setShowAddModal(true);
   };
 
-  // Navigate to upload page when View is clicked
-  const handleViewInspection = (inspectionId) => {
-    navigate("/upload", { state: { inspectionId } });
+  // Navigate to preview page when View is clicked
+  const handleViewInspection = async (inspectionId) => {
+    // Find the inspection to get its transformerId
+    const inspection = allInspections.find(insp => insp.id === inspectionId);
+    if (!inspection) {
+      alert("Inspection not found");
+      return;
+    }
+
+    try {
+      // Fetch images for this transformer to check availability
+      const imagesRes = await fetch(getApiUrl(`images/transformer/${inspection.transformerId}`));
+      
+      if (!imagesRes.ok) {
+        throw new Error(`Failed to fetch images: ${imagesRes.status}`);
+      }
+
+      const imagesData = await imagesRes.json();
+      
+      // Helper to find latest image by type
+      const findLatestByType = (images, type) => {
+        return images
+          .filter(img => img.imageType?.toUpperCase() === type.toUpperCase())
+          .sort((a, b) => {
+            const dateA = new Date(a.uploadedAt || a.createdAt || a.uploadDate || 0).getTime();
+            const dateB = new Date(b.uploadedAt || b.createdAt || b.uploadDate || 0).getTime();
+            return dateB - dateA;
+          })[0] || null;
+      };
+
+      const baselineImage = findLatestByType(imagesData, "BASELINE");
+      const maintenanceImage = findLatestByType(imagesData, "MAINTENANCE");
+
+      // Check what images are missing
+      const missingBaseline = !baselineImage;
+      const missingMaintenance = !maintenanceImage;
+
+      if (missingBaseline || missingMaintenance) {
+        // Redirect to upload page with appropriate message
+        let message = "";
+        if (missingBaseline && missingMaintenance) {
+          message = "No thermal images available. Please upload both Baseline and Maintenance images to enable comparison.";
+        } else if (missingBaseline) {
+          message = "Baseline image not available. Please upload a Baseline thermal image to enable comparison.";
+        } else if (missingMaintenance) {
+          message = "Maintenance image not available. Please upload a Maintenance thermal image to enable comparison.";
+        }
+
+        navigate("/upload", { 
+          state: { 
+            inspectionId: inspectionId,
+            transformerId: inspection.transformerId,
+            message: message
+          } 
+        });
+      } else {
+        // Both images available, navigate to preview page
+        navigate("/preview", { 
+          state: { 
+            transformerId: inspection.transformerId,
+            inspectionId: inspectionId
+          } 
+        });
+      }
+    } catch (err) {
+      alert(`Error checking images: ${err.message}`);
+      // On error, navigate to upload page anyway
+      navigate("/upload", { 
+        state: { 
+          inspectionId: inspectionId,
+          transformerId: inspection.transformerId
+        } 
+      });
+    }
   };
 
   // Edit inspection

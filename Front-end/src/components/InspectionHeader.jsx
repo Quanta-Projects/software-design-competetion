@@ -157,22 +157,12 @@ export default function InspectionHeader({
             <Button
               variant="light"
               className="rounded-4 d-flex align-items-center soft-chip"
-              onClick={onOpenBaseline}
-              title="Open baseline image"
+              onClick={onViewBaseline}
+              title="View baseline image"
             >
               <i className="bi bi-image me-2" />
               <span>Baseline Image</span>
-            </Button>
-
-            <Button
-              variant="light"
-              className="rounded-circle p-0 d-flex align-items-center justify-content-center soft-icon"
-              style={{ width: 40, height: 40 }}
-              onClick={onViewBaseline}
-              aria-label="View baseline image"
-              title="View baseline image"
-            >
-              <i className="bi bi-eye" />
+              <i className="bi bi-eye ms-2" />
             </Button>
 
             <Button
