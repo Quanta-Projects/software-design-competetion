@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Container, Button, Offcanvas, Alert, Card } from "react-bootstrap";
+import { Container, Button, Offcanvas, Alert, Card, Form } from "react-bootstrap";
 import InspectionHeader from "../components/InspectionHeader";
 import { getApiUrl, getImageUrl } from "../utils/config";
 
-const PREVIEW_HEIGHT = 420;
+const DEFAULT_PREVIEW_HEIGHT = 420;
+const MAX_PREVIEW_HEIGHT = 800;
+const MIN_PREVIEW_HEIGHT = 300;
 const FRAME_RADIUS = 16;
 const SYNC_ZOOM_SCALE = 2.2;
 
@@ -19,13 +21,26 @@ function PanZoomContainFrame({
   onSyncLeave,
   onSyncMove,
   syncStyle,
+  containerHeight = DEFAULT_PREVIEW_HEIGHT,
+  resetTrigger,
+  annotationTool,
 }) {
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [panning, setPanning] = useState(false);
   const panRef = useRef({ startX: 0, startY: 0, startOffset: { x: 0, y: 0 } });
 
+  // Reset zoom and offset when resetTrigger changes
+  useEffect(() => {
+    if (resetTrigger > 0) {
+      setZoom(1);
+      setOffset({ x: 0, y: 0 });
+    }
+  }, [resetTrigger]);
+
   const onWheelZoom = (e) => {
+    // Only allow zoom if move tool is selected
+    if (annotationTool !== "move") return;
     if (syncZoomOn) return;
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.1 : 0.9;
@@ -33,6 +48,8 @@ function PanZoomContainFrame({
   };
 
   const onMouseDown = (e) => {
+    // Only allow panning if move tool is selected
+    if (annotationTool !== "move") return;
     if (syncZoomOn || zoom <= 1) return;
     e.preventDefault();
     setPanning(true);
@@ -55,7 +72,11 @@ function PanZoomContainFrame({
   };
 
   const endPan = () => setPanning(false);
-  const onDoubleClick = () => { if (!syncZoomOn) { setZoom(1); setOffset({ x: 0, y: 0 }); } };
+  const onDoubleClick = () => { 
+    // Only allow double-click reset if move tool is selected
+    if (annotationTool !== "move") return;
+    if (!syncZoomOn) { setZoom(1); setOffset({ x: 0, y: 0 }); } 
+  };
 
   const frameHandlers = syncZoomOn
     ? { onMouseEnter: onSyncEnter, onMouseLeave: onSyncLeave, onMouseMove }
@@ -67,7 +88,7 @@ function PanZoomContainFrame({
       style={{
         position: "relative",
         width: "100%",
-        height: PREVIEW_HEIGHT,
+        height: containerHeight,
         border: "1px solid #eef0f3",
         borderRadius: FRAME_RADIUS,
         overflow: "hidden",
@@ -75,7 +96,9 @@ function PanZoomContainFrame({
         userSelect: "none",
         cursor: syncZoomOn
           ? (isHoveringSync ? "zoom-in" : "default")
-          : (panning ? "grabbing" : zoom > 1 ? "grab" : "default"),
+          : annotationTool === "move"
+            ? (panning ? "grabbing" : zoom > 1 ? "grab" : "default")
+            : "default",
       }}
       title={
         syncZoomOn
@@ -127,31 +150,6 @@ function PanZoomContainFrame({
         )}
       </div>
 
-      {/* Metadata overlay */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0, right: 0, bottom: 0,
-          height: 42,
-          background: "linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0))",
-          zIndex: 3,
-          pointerEvents: "none",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          left: 0, right: 0, bottom: 8,
-          textAlign: "center",
-          fontSize: 12,
-          color: "#fff",
-          textShadow: "0 1px 2px rgba(0,0,0,.6)",
-          zIndex: 4,
-          pointerEvents: "none",
-        }}
-      >
-        {metaText || "—"}
-      </div>
     </div>
   );
 }
@@ -168,11 +166,263 @@ export default function PreviewPage() {
   const [error, setError] = useState(null);
   const [showMenu, setShowMenu] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [containerHeight, setContainerHeight] = useState(DEFAULT_PREVIEW_HEIGHT);
+
+  // Settings modal state
+  const [showSettings, setShowSettings] = useState(false);
+  const [tempDifference, setTempDifference] = useState("20%");
+  const [rule2Enabled, setRule2Enabled] = useState(true);
+  const [rule3Enabled, setRule3Enabled] = useState(true);
+  const [rule2Expanded, setRule2Expanded] = useState(false);
+  const [rule3Expanded, setRule3Expanded] = useState(false);
+
+  // Annotation tools state
+  const [annotationTool, setAnnotationTool] = useState(null); // null, "move", "zoom"
+  const [weatherCondition, setWeatherCondition] = useState("SUNNY");
+  const [resetTrigger, setResetTrigger] = useState(0);
+
+  // Anomaly errors state
+  const [anomalyErrors, setAnomalyErrors] = useState([]);
+  const [loadingErrors, setLoadingErrors] = useState(false);
+  const [expandedErrorId, setExpandedErrorId] = useState(null);
+  const [selectedErrorId, setSelectedErrorId] = useState(null);
+  const [currentNote, setCurrentNote] = useState("");
+  const [errorNotes, setErrorNotes] = useState({}); // { errorId: [note1, note2, ...] }
 
   // zoom state
   const [syncZoomOn, setSyncZoomOn] = useState(false);
   const [isHoveringSync, setIsHoveringSync] = useState(false);
   const [hoverNorm, setHoverNorm] = useState({ x: 0.5, y: 0.5 });
+
+  // Annotation tool handlers
+  const handleResetView = () => {
+    setResetTrigger(prev => prev + 1);
+    setAnnotationTool(null);
+    setSyncZoomOn(false);
+  };
+
+  const handleMoveMode = () => {
+    if (annotationTool === "move") {
+      setAnnotationTool(null);
+    } else {
+      setAnnotationTool("move");
+    }
+    setSyncZoomOn(false);
+  };
+
+  const handleZoomMode = () => {
+    if (annotationTool === "zoom") {
+      setAnnotationTool(null);
+      setSyncZoomOn(false);
+    } else {
+      setAnnotationTool("zoom");
+      setSyncZoomOn(true);
+    }
+  };
+
+  // Settings handlers
+  const handleSettingsConfirm = async () => {
+    // Prepare the settings data to send to backend
+    const settingsData = {
+      temperatureDifferenceThreshold: parseInt(tempDifference), // Convert "20%" to 20
+      looseJointDetection: rule2Enabled, // Rule 2: Loose Joint Condition
+      overloadDetection: rule3Enabled,   // Rule 3: Overloaded Condition
+      transformerId: transformerId,
+      inspectionId: inspectionId,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log('Settings to be sent to backend:', settingsData);
+
+    /*
+     * BACKEND ENDPOINT DOCUMENTATION:
+     * 
+     * Endpoint: POST /api/analysis/settings
+     * 
+     * Request Body:
+     * {
+     *   "temperatureDifferenceThreshold": 20,        // Integer: 10-100 (percentage value)
+     *   "looseJointDetection": true,                 // Boolean: Enable/disable Rule 2
+     *   "overloadDetection": true,                   // Boolean: Enable/disable Rule 3
+     *   "transformerId": "string",                   // ID of the transformer
+     *   "inspectionId": "string",                    // ID of the inspection (optional)
+     *   "timestamp": "2025-10-04T12:00:00.000Z"     // ISO timestamp
+     * }
+     * 
+     * Expected Response (200 OK):
+     * {
+     *   "success": true,
+     *   "message": "Settings saved successfully",
+     *   "settingsId": "string",                      // Optional: ID of saved settings
+     *   "appliedTo": {
+     *     "transformerId": "string",
+     *     "inspectionId": "string"
+     *   }
+     * }
+     * 
+     * Error Response (400/500):
+     * {
+     *   "success": false,
+     *   "error": "Error message"
+     * }
+     */
+
+    try {
+      // Send settings to backend
+      const response = await fetch(getApiUrl('analysis/settings'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settingsData),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Settings saved successfully:', result);
+        alert('Settings saved successfully!');
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to save settings:', errorText);
+        alert('Failed to save settings. The backend endpoint may not be implemented yet.');
+      }
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      alert('Error saving settings: ' + error.message + '\n\nSettings data prepared:\n' + JSON.stringify(settingsData, null, 2));
+    }
+
+    setShowSettings(false);
+  };
+
+  const handleSettingsCancel = () => {
+    setShowSettings(false);
+  };
+
+  // Notes handlers
+  const handleAddNote = async () => {
+    if (!selectedErrorId || !currentNote.trim()) return;
+    
+    const newNote = {
+      text: currentNote.trim(),
+      timestamp: new Date().toISOString(),
+      id: Date.now().toString()
+    };
+    
+    // Update local state first (optimistic update)
+    setErrorNotes(prev => ({
+      ...prev,
+      [selectedErrorId]: [...(prev[selectedErrorId] || []), newNote]
+    }));
+    
+    setCurrentNote("");
+
+    /*
+     * BACKEND ENDPOINT DOCUMENTATION:
+     * 
+     * Endpoint: POST /api/anomalies/{errorId}/notes
+     * 
+     * Request Body:
+     * {
+     *   "errorId": "mock-1",
+     *   "transformerId": "string",
+     *   "inspectionId": "string",
+     *   "note": "This needs immediate attention",
+     *   "timestamp": "2025-10-04T12:00:00.000Z"
+     * }
+     * 
+     * Expected Response (200 OK):
+     * {
+     *   "success": true,
+     *   "noteId": "string",                    // ID of the saved note
+     *   "message": "Note added successfully"
+     * }
+     * 
+     * Error Response (400/500):
+     * {
+     *   "success": false,
+     *   "error": "Error message"
+     * }
+     */
+
+    // Send to backend
+    try {
+      const response = await fetch(getApiUrl(`anomalies/${selectedErrorId}/notes`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          errorId: selectedErrorId,
+          transformerId: transformerId,
+          inspectionId: inspectionId,
+          note: newNote.text,
+          timestamp: newNote.timestamp
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Note saved successfully:', result);
+        // Optionally update the note ID from backend
+        if (result.noteId) {
+          setErrorNotes(prev => ({
+            ...prev,
+            [selectedErrorId]: prev[selectedErrorId].map((n, idx) => 
+              idx === prev[selectedErrorId].length - 1 ? { ...n, id: result.noteId } : n
+            )
+          }));
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to save note:', errorText);
+        alert('Failed to save note to server. The note is saved locally but may not persist.');
+      }
+    } catch (error) {
+      console.error('Error saving note:', error);
+      console.log('Note data that failed to save:', {
+        errorId: selectedErrorId,
+        transformerId,
+        inspectionId,
+        note: newNote.text,
+        timestamp: newNote.timestamp
+      });
+      // Note remains in local state even if backend save fails
+    }
+  };
+
+  const handleCancelNote = () => {
+    setCurrentNote("");
+    setSelectedErrorId(null);
+  };
+
+  const handleWeatherChange = async (newWeather) => {
+    setWeatherCondition(newWeather);
+    
+    // Update the maintenance image weather condition if it exists
+    const maintenanceImg = comparisonSources.current;
+    if (maintenanceImg && maintenanceImg.id) {
+      try {
+        const response = await fetch(getApiUrl(`images/${maintenanceImg.id}/weather`), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ weatherCondition: newWeather }),
+        });
+
+        if (response.ok) {
+          // Reload images to reflect the change
+          const imagesRes = await fetch(getApiUrl(`images/transformer/${transformerId}`));
+          if (imagesRes.ok) {
+            const updatedImages = await imagesRes.json();
+            setImages(updatedImages);
+          }
+        }
+      } catch (err) {
+        console.error('Error updating weather condition:', err);
+      }
+    }
+  };
 
   const onSyncEnter = () => { if (syncZoomOn) setIsHoveringSync(true); };
   const onSyncLeave = () => { setIsHoveringSync(false); };
@@ -250,6 +500,51 @@ export default function PreviewPage() {
         return tb - ta;
       })[0] || null;
 
+  // Calculate dynamic container height based on image dimensions
+  useEffect(() => {
+    const baseline = uploadedImage?.imageType?.toUpperCase() === "BASELINE" 
+      ? uploadedImage 
+      : findLatestByType("BASELINE");
+    const current = uploadedImage?.imageType?.toUpperCase() !== "BASELINE" && uploadedImage
+      ? uploadedImage 
+      : findLatestByType("MAINTENANCE");
+
+    // Get the image URL to load
+    const imageToMeasure = baseline || current;
+    if (!imageToMeasure) {
+      setContainerHeight(DEFAULT_PREVIEW_HEIGHT);
+      return;
+    }
+
+    const imgUrl = resolveImageUrl(imageToMeasure);
+    if (!imgUrl) {
+      setContainerHeight(DEFAULT_PREVIEW_HEIGHT);
+      return;
+    }
+
+    // Load image to get its natural dimensions
+    const img = new Image();
+    img.onload = () => {
+      // Calculate container width (roughly half of the card width minus gap)
+      // Assuming card max-width is 1100px, each frame gets ~512px
+      const containerWidth = 512;
+      const aspectRatio = img.naturalHeight / img.naturalWidth;
+      
+      // Calculate height based on aspect ratio
+      let calculatedHeight = containerWidth * aspectRatio;
+      
+      // Clamp to min/max values
+      calculatedHeight = Math.max(MIN_PREVIEW_HEIGHT, Math.min(MAX_PREVIEW_HEIGHT, calculatedHeight));
+      
+      setContainerHeight(Math.round(calculatedHeight));
+    };
+    img.onerror = () => {
+      // Fallback to default height on error
+      setContainerHeight(DEFAULT_PREVIEW_HEIGHT);
+    };
+    img.src = imgUrl;
+  }, [images, uploadedImage, resolveImageUrl, findLatestByType, getUploadedAt, uploadedImage]);
+
   const comparisonSources = (() => {
     if (!images.length) return { baseline: null, current: null };
     if (uploadedImage) {
@@ -262,6 +557,103 @@ export default function PreviewPage() {
     return { baseline: findLatestByType("BASELINE"), current: findLatestByType("MAINTENANCE") };
   })();
 
+  // Set initial weather condition from maintenance image
+  useEffect(() => {
+    const maintenanceImg = comparisonSources.current;
+    if (maintenanceImg && maintenanceImg.envCondition) {
+      setWeatherCondition(maintenanceImg.envCondition.toUpperCase());
+    }
+  }, [comparisonSources.current]);
+
+  // Fetch anomaly errors from backend
+  useEffect(() => {
+    if (!transformerId || !inspectionId) return;
+
+    // setAnomalyErrors([
+    //   {
+    //     id: "mock-1",
+    //     errorType: "Thermal Anomaly",
+    //     timestamp: "2025-08-15T10:15:00Z",
+    //     detectedBy: "Mark Henry",
+    //     description: "High temperature difference detected"
+    //   },
+    //   {
+    //     id: "mock-2",
+    //     errorType: "Loose Joint",
+    //     timestamp: "2025-08-15T10:15:00Z",
+    //     detectedBy: "AI"
+    //   }
+    // ]);
+    // return;
+
+    const fetchAnomalyErrors = async () => {
+      setLoadingErrors(true);
+      try {
+        /*
+         * BACKEND ENDPOINT DOCUMENTATION:
+         * 
+         * Endpoint: GET /api/anomalies/inspection/{inspectionId}
+         * or: GET /api/anomalies/transformer/{transformerId}/inspection/{inspectionId}
+         * 
+         * Expected Response (200 OK):
+         * {
+         *   "anomalies": [
+         *     {
+         *       "id": "string",
+         *       "errorType": "string",           // e.g., "Thermal Anomaly", "Loose Joint"
+         *       "timestamp": "2025-08-15T10:15:00Z",
+         *       "detectedBy": "AI" | "Mark Henry",
+         *       "description": "string",         // Optional: error description
+         *       "notes": [                        // Optional: array of notes for this error
+         *         {
+         *           "id": "note-1",
+         *           "text": "This needs immediate attention",
+         *           "timestamp": "2025-08-15T10:20:00Z"
+         *         },
+         *         {
+         *           "id": "note-2",
+         *           "text": "Scheduled for repair",
+         *           "timestamp": "2025-08-15T10:25:00Z"
+         *         }
+         *       ]
+         *     }
+         *   ]
+         * }
+         */
+        const response = await fetch(
+          getApiUrl(`anomalies/inspection/${inspectionId}`),
+          { method: 'GET' }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          setAnomalyErrors(data.anomalies || []);
+          
+          // Load existing notes from the response
+          if (data.anomalies && data.anomalies.length > 0) {
+            const notesMap = {};
+            data.anomalies.forEach(anomaly => {
+              if (anomaly.notes && anomaly.notes.length > 0) {
+                notesMap[anomaly.id] = anomaly.notes;
+              }
+            });
+            setErrorNotes(notesMap);
+          }
+        } else {
+          console.log('No anomaly data available yet');
+          setAnomalyErrors([]);
+        }
+      } catch (err) {
+        console.error('Error fetching anomaly errors:', err);
+        setAnomalyErrors([]);
+      } finally {
+        setLoadingErrors(false);
+      }
+    };
+
+    fetchAnomalyErrors();
+  }, [transformerId, inspectionId]);
+
   const baselineMeta = formatUpload(getUploadedAt(comparisonSources.baseline));
   const currentMeta  = formatUpload(getUploadedAt(comparisonSources.current));
 
@@ -271,6 +663,43 @@ export default function PreviewPage() {
       state.inspectionId = inspectionId;
     }
     navigate("/upload", { state });
+  };
+
+  const handleViewBaseline = () => {
+    // Navigate to upload page when "Baseline Image" button is clicked
+    goBackToUploads();
+  };
+
+  const handleDeleteBaseline = async () => {
+    const baselineImage = comparisonSources.baseline;
+    
+    if (!baselineImage || !baselineImage.id) {
+      alert('No baseline image to delete');
+      return;
+    }
+
+    if (!window.confirm('Are you sure you want to delete the baseline image? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(getApiUrl(`images/${baselineImage.id}`), {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        console.log('Baseline image deleted successfully');
+        // Redirect to upload page after successful deletion
+        goBackToUploads();
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to delete baseline image:', errorText);
+        alert('Failed to delete baseline image. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error deleting baseline image:', error);
+      alert('Error deleting baseline image: ' + error.message);
+    }
   };
 
   return (
@@ -306,6 +735,8 @@ export default function PreviewPage() {
                 inspectedBy={"A-110"}
                 status={{ text: "In progress", variant: "success" }}
                 onBack={goBackToUploads}
+                onViewBaseline={handleViewBaseline}
+                onDeleteBaseline={handleDeleteBaseline}
               />
             </div>
 
@@ -314,15 +745,21 @@ export default function PreviewPage() {
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <h5 className="mb-0">Thermal Image Comparison</h5>
                   <Button
+                    variant="light"
                     size="sm"
-                    variant={syncZoomOn ? "primary" : "outline-secondary"}
-                    onClick={() => setSyncZoomOn((v) => !v)}
-                    className="d-flex align-items-center gap-1"
-                    aria-pressed={syncZoomOn}
-                    title={syncZoomOn ? "Disable synchronized Zoom" : "Enable synchronized Zoom"}
+                    className="d-flex align-items-center justify-content-center"
+                    onClick={() => setShowSettings(true)}
+                    style={{ 
+                      width: "36px", 
+                      height: "36px", 
+                      borderRadius: "8px",
+                      padding: 0,
+                      background: "#f6f7fb",
+                      border: "1px solid #eceff5"
+                    }}
+                    title="Settings"
                   >
-                    <i className={`bi ${syncZoomOn ? "bi-zoom-out" : "bi-zoom-in"}`} />
-                    Zoom
+                    <i className="bi bi-gear" style={{ fontSize: "18px" }}></i>
                   </Button>
                 </div>
 
@@ -338,6 +775,9 @@ export default function PreviewPage() {
                     onSyncLeave={onSyncLeave}
                     onSyncMove={onSyncMove}
                     syncStyle={syncZoomStyle(syncZoomOn)}
+                    containerHeight={containerHeight}
+                    resetTrigger={resetTrigger}
+                    annotationTool={annotationTool}
                   />
                   <PanZoomContainFrame
                     src={resolveImageUrl(comparisonSources.current)}
@@ -350,14 +790,319 @@ export default function PreviewPage() {
                     onSyncLeave={onSyncLeave}
                     onSyncMove={onSyncMove}
                     syncStyle={syncZoomStyle(syncZoomOn)}
+                    containerHeight={containerHeight}
+                    resetTrigger={resetTrigger}
+                    annotationTool={annotationTool}
                   />
                 </div>
 
-                <div className="d-flex justify-content-center mt-3">
-                  <Button variant="light" className="px-4" onClick={goBackToUploads}>
-                    Back to uploads
-                  </Button>
+                {/* Weather Condition and Annotation Tools Row */}
+                <div className="d-flex justify-content-between align-items-end mt-3">
+                  {/* Weather Condition Dropdown */}
+                  <div style={{ width: "250px" }}>
+                    <Form.Label className="mb-2 fw-semibold">Weather Condition</Form.Label>
+                    <Form.Select 
+                      value={weatherCondition} 
+                      onChange={(e) => handleWeatherChange(e.target.value)}
+                      style={{ 
+                        borderRadius: "8px",
+                        padding: "8px 12px"
+                      }}
+                    >
+                      <option value="SUNNY">Sunny</option>
+                      <option value="RAINY">Rainy</option>
+                      <option value="CLOUDY">Cloudy</option>
+                    </Form.Select>
+                  </div>
+
+                  {/* Right Side: Add Maintenance Button and Annotation Tools */}
+                  <div className="d-flex flex-column align-items-end gap-2">
+                    {/* Add Maintenance Image Button */}
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => navigate("/upload", { 
+                        state: { 
+                          transformerId, 
+                          inspectionId,
+                          defaultImageType: "MAINTENANCE" 
+                        } 
+                      })}
+                      className="d-flex align-items-center"
+                      style={{ 
+                        borderRadius: "6px",
+                        padding: "6px 12px",
+                        backgroundColor: "#3b34d5",
+                        border: "none",
+                        fontWeight: "500",
+                        fontSize: "0.8rem"
+                      }}
+                      title="Add a new maintenance image"
+                    >
+                      <i className="bi bi-plus-circle me-1" style={{ fontSize: "14px" }}></i>
+                      Add Maintenance
+                    </Button>
+
+                    {/* Annotation Tools */}
+                    <div className="d-flex align-items-center gap-2">
+                      <div className="fw-semibold" style={{ fontSize: "0.95rem" }}>Annotation Tools</div>
+                      <div className="d-flex gap-2">
+                        <Button
+                          variant="light"
+                          size="sm"
+                          onClick={handleResetView}
+                          className="d-flex align-items-center justify-content-center"
+                          style={{ 
+                            width: "40px", 
+                            height: "40px", 
+                            borderRadius: "8px",
+                            padding: 0,
+                            background: "#f6f7fb",
+                            border: "1px solid #eceff5"
+                          }}
+                          title="Reset View"
+                        >
+                          <i className="bi bi-arrow-clockwise" style={{ fontSize: "18px" }}></i>
+                        </Button>
+                        <Button
+                          variant="light"
+                          size="sm"
+                          onClick={handleMoveMode}
+                          className="d-flex align-items-center justify-content-center"
+                          style={{ 
+                            width: "40px", 
+                            height: "40px", 
+                            borderRadius: "8px",
+                            padding: 0,
+                            background: annotationTool === "move" ? "#007bff" : "#f6f7fb",
+                            border: annotationTool === "move" ? "1px solid #007bff" : "1px solid #eceff5",
+                            color: annotationTool === "move" ? "#fff" : "inherit"
+                          }}
+                          title="Move (Click and Drag)"
+                        >
+                          <i className="bi bi-arrows-move" style={{ fontSize: "18px" }}></i>
+                        </Button>
+                        <Button
+                          variant="light"
+                          size="sm"
+                          onClick={handleZoomMode}
+                          className="d-flex align-items-center justify-content-center"
+                          style={{ 
+                            width: "40px", 
+                            height: "40px", 
+                            borderRadius: "8px",
+                            padding: 0,
+                            background: annotationTool === "zoom" ? "#007bff" : "#f6f7fb",
+                            border: annotationTool === "zoom" ? "1px solid #007bff" : "1px solid #eceff5",
+                            color: annotationTool === "zoom" ? "#fff" : "inherit"
+                          }}
+                          title="Zoom"
+                        >
+                          <i className="bi bi-search" style={{ fontSize: "18px" }}></i>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
+              </Card.Body>
+            </Card>
+
+            {/* Errors Section */}
+            <Card className="mt-4">
+              <Card.Body>
+                <div className="mb-3">
+                  <h5 className="mb-0">Errors</h5>
+                </div>
+
+                {loadingErrors ? (
+                  <div className="text-center py-3 text-muted">
+                    <i className="bi bi-hourglass-split me-2"></i>
+                    Loading errors...
+                  </div>
+                ) : anomalyErrors.length === 0 ? (
+                  <div className="text-center py-4 text-muted">
+                    <i className="bi bi-check-circle me-2" style={{ fontSize: "1.2rem", color: "#28a745" }}></i>
+                    No errors detected
+                  </div>
+                ) : (
+                  <>
+                    <div className="d-flex flex-column gap-3">
+                      {anomalyErrors.map((error, index) => {
+                        const isExpanded = expandedErrorId === error.id;
+                        const isSelected = selectedErrorId === error.id;
+                        const notes = errorNotes[error.id] || [];
+                        return (
+                        <div 
+                          key={error.id || index}
+                          onClick={() => {
+                            setExpandedErrorId(isExpanded ? null : error.id);
+                            setSelectedErrorId(error.id);
+                          }}
+                          className="p-3"
+                          style={{ 
+                            backgroundColor: isSelected ? "#e7f3ff" : "#f8f9fa",
+                            borderRadius: "8px",
+                            border: isSelected ? "2px solid #007bff" : "1px solid #e9ecef",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease"
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSelected) e.currentTarget.style.backgroundColor = "#e9ecef";
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSelected) e.currentTarget.style.backgroundColor = "#f8f9fa";
+                          }}
+                        >
+                          {/* Basic Info - Always Visible */}
+                          <div className="d-flex align-items-center gap-3">
+                            <span 
+                              className="badge"
+                              style={{
+                                backgroundColor: index === 0 ? "#dc3545" : "#c82333",
+                                color: "white",
+                                fontSize: "0.85rem",
+                                padding: "6px 12px",
+                                borderRadius: "6px",
+                                fontWeight: "600"
+                              }}
+                            >
+                              Error {index + 1}
+                            </span>
+                            <span style={{ color: "#495057", fontSize: "0.95rem" }}>
+                              {new Date(error.timestamp).toLocaleString('en-US', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })} - {error.detectedBy || 'AI'}
+                            </span>
+                            <i 
+                              className={`bi bi-chevron-${isExpanded ? 'up' : 'down'} ms-auto`}
+                              style={{ color: "#6c757d" }}
+                            ></i>
+                          </div>
+
+                          {/* Expanded Details - Show on Click */}
+                          {isExpanded && (
+                            <div className="mt-3 pt-3" style={{ borderTop: "1px solid #dee2e6" }}>
+                              {error.errorType && (
+                                <div className="mb-2">
+                                  <strong style={{ color: "#495057", fontSize: "0.9rem" }}>Type:</strong>
+                                  <span className="ms-2" style={{ color: "#6c757d", fontSize: "0.9rem" }}>
+                                    {error.errorType}
+                                  </span>
+                                </div>
+                              )}
+                              {error.description && (
+                                <div className="mb-3">
+                                  <strong style={{ color: "#495057", fontSize: "0.9rem" }}>Description:</strong>
+                                  <p className="mb-0 mt-1" style={{ color: "#6c757d", fontSize: "0.9rem" }}>
+                                    {error.description}
+                                  </p>
+                                </div>
+                              )}
+                              {notes.length > 0 && (
+                                <div className="mt-3">
+                                  <strong style={{ color: "#495057", fontSize: "0.9rem" }}>Notes:</strong>
+                                  <div className="mt-2">
+                                    {notes.map((note, noteIndex) => (
+                                      <div 
+                                        key={note.id}
+                                        className="mb-2 p-2"
+                                        style={{
+                                          backgroundColor: "#fff",
+                                          borderRadius: "6px",
+                                          border: "1px solid #dee2e6",
+                                          fontSize: "0.85rem"
+                                        }}
+                                      >
+                                        <div style={{ color: "#495057" }}>{note.text}</div>
+                                        <div className="mt-1" style={{ color: "#adb5bd", fontSize: "0.75rem" }}>
+                                          {new Date(note.timestamp).toLocaleString('en-US', {
+                                            month: '2-digit',
+                                            day: '2-digit',
+                                            year: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                          })}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Notes Section */}
+                  <div className="mt-4 pt-4" style={{ borderTop: "2px solid #e9ecef" }}>
+                    <h6 className="mb-3">Notes</h6>
+                    
+                    {!selectedErrorId ? (
+                      <div className="text-center py-3 text-muted" style={{ fontSize: "0.9rem" }}>
+                        <i className="bi bi-info-circle me-2"></i>
+                        Select an error above to add notes
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="mb-2">
+                          <small className="text-muted">
+                            Adding note to <strong>Error {anomalyErrors.findIndex(e => e.id === selectedErrorId) + 1}</strong>
+                          </small>
+                        </div>
+                        <Form.Control
+                          as="textarea"
+                          rows={3}
+                          placeholder="Type here to add notes..."
+                          value={currentNote}
+                          onChange={(e) => setCurrentNote(e.target.value)}
+                          style={{
+                            borderRadius: "8px",
+                            border: "1px solid #dee2e6",
+                            fontSize: "0.9rem",
+                            resize: "none"
+                          }}
+                        />
+                        <div className="d-flex gap-2 mt-3">
+                          <Button
+                            onClick={handleAddNote}
+                            disabled={!currentNote.trim()}
+                            style={{
+                              padding: "8px 24px",
+                              borderRadius: "8px",
+                              backgroundColor: "#3b34d5",
+                              border: "none",
+                              fontWeight: "500",
+                              fontSize: "0.9rem"
+                            }}
+                          >
+                            Confirm
+                          </Button>
+                          <Button
+                            variant="light"
+                            onClick={handleCancelNote}
+                            style={{
+                              padding: "8px 24px",
+                              borderRadius: "8px",
+                              border: "1px solid #dee2e6",
+                              fontWeight: "500",
+                              fontSize: "0.9rem",
+                              color: "#6c757d"
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+                )}
               </Card.Body>
             </Card>
           </>
@@ -369,6 +1114,155 @@ export default function PreviewPage() {
           <Offcanvas.Title>Menu</Offcanvas.Title>
         </Offcanvas.Header>
         <Offcanvas.Body />
+      </Offcanvas>
+
+      {/* Settings Modal */}
+      <Offcanvas show={showSettings} onHide={handleSettingsCancel} placement="end" style={{ width: "500px" }}>
+        <Offcanvas.Header closeButton>
+          <Offcanvas.Title style={{ fontSize: "1.5rem", color: "#6c757d" }}>Error Ruleset</Offcanvas.Title>
+        </Offcanvas.Header>
+        <Offcanvas.Body>
+          <div className="d-flex flex-column h-100">
+            {/* Settings Content */}
+            <div className="flex-grow-1">
+              {/* Temperature Difference */}
+              <div className="mb-4">
+                <h6 className="fw-bold mb-2" style={{ fontSize: "1.1rem" }}>Temperature Dereference</h6>
+                <p className="text-muted small mb-3">Temperature deference between baseline and maintenance images.</p>
+                <Form.Select 
+                  value={tempDifference} 
+                  onChange={(e) => setTempDifference(e.target.value)}
+                  style={{ 
+                    borderRadius: "8px",
+                    padding: "10px 12px",
+                    fontSize: "1rem"
+                  }}
+                >
+                  <option value="10%">10%</option>
+                  <option value="20%">20%</option>
+                  <option value="30%">30%</option>
+                  <option value="40%">40%</option>
+                  <option value="50%">50%</option>
+                  <option value="60%">60%</option>
+                  <option value="70%">70%</option>
+                  <option value="80%">80%</option>
+                  <option value="90%">90%</option>
+                  <option value="100%">100%</option>
+                </Form.Select>
+              </div>
+
+              {/* Rule 2 - Loose Joint Condition */}
+              <div className="mb-4">
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <h6 className="fw-bold mb-0" style={{ fontSize: "1.1rem" }}>Rule 2</h6>
+                  <Form.Check 
+                    type="switch"
+                    id="rule2-switch"
+                    checked={rule2Enabled}
+                    onChange={(e) => setRule2Enabled(e.target.checked)}
+                    style={{ transform: "scale(1.3)" }}
+                  />
+                </div>
+                <p 
+                  className="text-muted small mb-2" 
+                  onClick={() => setRule2Expanded(!rule2Expanded)}
+                  style={{ cursor: "pointer", userSelect: "none" }}
+                >
+                  {rule2Expanded ? "▼" : "▶"} Rule Description
+                </p>
+                {rule2Expanded && (
+                  <div className="p-3 bg-light rounded" style={{ fontSize: "0.9rem" }}>
+                    <h6 className="fw-semibold mb-2">Loose Joint Condition</h6>
+                    <p className="mb-2">
+                      A loose joint creates a hotspot at the connection point.
+                    </p>
+                    <p className="mb-2">
+                      <strong>Faulty:</strong> If the middle of the joint appears reddish or orange-yellowish, 
+                      compared to a blue/black background, it is a clear fault.
+                    </p>
+                    <p className="mb-0">
+                      <strong>Potentially Faulty:</strong> If the middle of the joint is yellowish (not reddish or orange) 
+                      compared to the blue/black background, it is potentially faulty.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Rule 3 - Overloaded Condition */}
+              <div className="mb-4">
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <h6 className="fw-bold mb-0" style={{ fontSize: "1.1rem" }}>Rule 3</h6>
+                  <Form.Check 
+                    type="switch"
+                    id="rule3-switch"
+                    checked={rule3Enabled}
+                    onChange={(e) => setRule3Enabled(e.target.checked)}
+                    style={{ transform: "scale(1.3)" }}
+                  />
+                </div>
+                <p 
+                  className="text-muted small mb-2" 
+                  onClick={() => setRule3Expanded(!rule3Expanded)}
+                  style={{ cursor: "pointer", userSelect: "none" }}
+                >
+                  {rule3Expanded ? "▼" : "▶"} Rule Description
+                </p>
+                {rule3Expanded && (
+                  <div className="p-3 bg-light rounded" style={{ fontSize: "0.9rem" }}>
+                    <h6 className="fw-semibold mb-2">Overloaded Condition</h6>
+                    <p className="mb-2">
+                      Overloading causes heating along a wire.
+                    </p>
+                    <p className="mb-2">
+                      <strong>Point Overload (Faulty):</strong> If a small point or small area on the wire appears 
+                      reddish or orange-yellowish, while the rest of the wire is in black/blue or yellowish, 
+                      it is a faulty case.
+                    </p>
+                    <p className="mb-2">
+                      <strong>Point Overload (Potentially Faulty):</strong> If a small point or small area on the wire 
+                      appears yellowish, while the rest of the wire is in black/blue, it is a potentially faulty case.
+                    </p>
+                    <p className="mb-0">
+                      <strong>Full Wire Overload (Potentially Faulty):</strong> If the entire wire appears in reddish 
+                      or yellowish colors, it is considered potentially faulty. This could be due to operational load 
+                      rather than a permanent fault.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="d-flex gap-3 mt-4">
+              <Button 
+                onClick={handleSettingsConfirm}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: "8px",
+                  backgroundColor: "#3b34d5",
+                  border: "none",
+                  fontWeight: "500"
+                }}
+              >
+                Confirm
+              </Button>
+              <Button 
+                variant="light"
+                onClick={handleSettingsCancel}
+                style={{
+                  padding: "12px 32px",
+                  borderRadius: "8px",
+                  border: "1px solid #dee2e6",
+                  fontWeight: "500",
+                  color: "#3b34d5"
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </Offcanvas.Body>
       </Offcanvas>
     </div>
   );

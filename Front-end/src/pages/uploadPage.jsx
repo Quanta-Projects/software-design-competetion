@@ -10,6 +10,8 @@ export default function UploadPage() {
   const navigate = useNavigate();
   const transformerId = location.state?.transformerId;
   const inspectionId = location.state?.inspectionId;
+  const defaultImageType = location.state?.defaultImageType; // Default image type from navigation
+  const [infoMessage, setInfoMessage] = useState(location.state?.message || ""); // Message from inspection view
 
   const [record, setRecord] = useState(null);
   const [inspection, setInspection] = useState(null);
@@ -17,6 +19,7 @@ export default function UploadPage() {
   const [error, setError] = useState(null);
   const [showMenu, setShowMenu] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showInfoMessage, setShowInfoMessage] = useState(!!location.state?.message); // Control message visibility
 
   // Progress view state
   const [isUploading, setIsUploading] = useState(false);
@@ -141,6 +144,7 @@ export default function UploadPage() {
           let uploaded = null;
           try { uploaded = JSON.parse(xhr.responseText || "{}"); } catch {}
 
+          let newImages = [];
           try {
             // Get effective transformerId for API calls
             const effectiveTransformerId = transformerId || (inspection?.transformerId);
@@ -149,7 +153,7 @@ export default function UploadPage() {
               `images/transformer/${effectiveTransformerId}`;
             const imagesRes = await fetch(getApiUrl(imagesEndpoint));
             if (imagesRes.ok) {
-              const newImages = await imagesRes.json();
+              newImages = await imagesRes.json();
               setImages(newImages);
               if (!uploaded || !uploaded.filePath) {
                 const latest = [...newImages].sort((a, b) => {
@@ -166,14 +170,37 @@ export default function UploadPage() {
           setProgress(0);
           xhrRef.current = null;
 
-          // go to preview page
-          navigate("/preview", { 
-            state: { 
-              transformerId: transformerId || (inspection?.transformerId), 
-              inspectionId,
-              uploadedImage: uploaded 
-            } 
-          });
+          // Check if both Baseline and Maintenance images are available
+          const hasBaseline = newImages.some(img => img.imageType?.toUpperCase() === "BASELINE");
+          const hasMaintenance = newImages.some(img => img.imageType?.toUpperCase() === "MAINTENANCE");
+
+          // Only navigate to preview if both images are available
+          if (hasBaseline && hasMaintenance) {
+            // Both images available - go to preview page
+            navigate("/preview", { 
+              state: { 
+                transformerId: transformerId || (inspection?.transformerId), 
+                inspectionId,
+                uploadedImage: uploaded 
+              } 
+            });
+          } else {
+            // One or both images missing - update message and stay on upload page
+            let message = "";
+            if (!hasBaseline && !hasMaintenance) {
+              message = "Baseline image uploaded successfully! Please upload a Maintenance image to enable comparison.";
+            } else if (!hasBaseline) {
+              message = "Maintenance image uploaded successfully! Please upload a Baseline image to enable comparison.";
+            } else if (!hasMaintenance) {
+              message = "Baseline image uploaded successfully! Please upload a Maintenance image to enable comparison.";
+            }
+            
+            setInfoMessage(message);
+            setShowInfoMessage(true);
+            
+            // Scroll to top to show the message
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
           return;
         } else {
           let msg = `Upload failed (${xhr.status})`;
@@ -280,6 +307,17 @@ export default function UploadPage() {
       <Container style={{ maxWidth: 1100 }}>
         {loading && <Alert variant="info" className="mt-3">Loading transformer data...</Alert>}
         {error && !isUploading && <Alert variant="danger" className="mt-3">{error}</Alert>}
+        {showInfoMessage && infoMessage && (
+          <Alert 
+            variant={infoMessage.includes("successfully") ? "success" : "warning"}
+            className="mt-3" 
+            dismissible 
+            onClose={() => setShowInfoMessage(false)}
+          >
+            <i className={`bi ${infoMessage.includes("successfully") ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill"} me-2`}></i>
+            {infoMessage}
+          </Alert>
+        )}
 
         {record && (
           <>
@@ -355,7 +393,10 @@ export default function UploadPage() {
                       <h5 className="mb-0">Upload New Image</h5>
                     </Card.Header>
                     <Card.Body>
-                      <ThermalImageUploader onUpload={uploadToBackend} />
+                      <ThermalImageUploader 
+                        onUpload={uploadToBackend} 
+                        defaultImageType={defaultImageType}
+                      />
                     </Card.Body>
                   </Card>
                 </Col>
