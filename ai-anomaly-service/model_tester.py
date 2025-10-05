@@ -420,7 +420,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Thermal Anomaly Detection Testing Suite")
     parser.add_argument("--model", "-m", type=str, 
-                       default="D:/ACCA Sem 7/Software Design Competetion/quanta-project/thermal_anomaly_model.pt",
+                       default="thermal_anomaly_model.pt",
                        help="Path to trained model")
     parser.add_argument("--image", "-i", type=str, help="Single image path")
     parser.add_argument("--folder", "-f", type=str, help="Folder with images")
@@ -483,9 +483,11 @@ def interactive_menu(tester: ThermalAnomalyTester):
                 print("[[ERROR]] Invalid folder path")
         
         elif choice == "3":
-            test_folder = "yolo_dataset/images/test"
-            if os.path.exists(test_folder):
-                tester.test_batch_images(test_folder)
+            # Use relative path from current script directory
+            script_dir = Path(__file__).parent
+            test_folder = script_dir / "yolo_dataset" / "images" / "test"
+            if test_folder.exists():
+                tester.test_batch_images(str(test_folder))
             else:
                 print("[[ERROR]] Test dataset not found")
         

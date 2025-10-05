@@ -36,7 +36,8 @@ def train_yolo_model():
         print(f"🔥 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
     
     # Configuration - Conservative memory settings for RTX 3050 Ti (4GB VRAM)
-    dataset_config = "D:/ACCA Sem 7/Software Design Competetion/quanta-project/Fork/software-design-competetion-forked/ai-anomaly-service/yolo_dataset/data.yaml"
+    script_dir = Path(__file__).parent
+    dataset_config = str(script_dir / "yolo_dataset" / "data.yaml")
     model_name = "yolov8n.pt"  # nano version for faster training
     epochs = 100
     image_size = 416 if device == 'cuda' else 640  # Smaller image size for GPU to save memory
@@ -89,8 +90,8 @@ def train_yolo_model():
         print(f"   mAP50-95: {metrics.box.map:.3f}")
         
         # Save the trained model
-        model_save_path = "thermal_anomaly_model.pt"
-        model.save(model_save_path)
+        model_save_path = script_dir / "thermal_anomaly_model.pt"
+        model.save(str(model_save_path))
         print(f"💾 Model saved as: {model_save_path}")
         
         return model, results
@@ -99,10 +100,14 @@ def train_yolo_model():
         print(f"❌ Training failed: {str(e)}")
         return None, None
 
-def test_inference(model_path="thermal_anomaly_model.pt"):
+def test_inference(model_path=None):
     """Test inference on some sample images"""
     
-    if not os.path.exists(model_path):
+    if model_path is None:
+        script_dir = Path(__file__).parent
+        model_path = script_dir / "thermal_anomaly_model.pt"
+    
+    if not Path(model_path).exists():
         print(f"❌ Model not found: {model_path}")
         return
     
@@ -115,9 +120,10 @@ def test_inference(model_path="thermal_anomaly_model.pt"):
         model = YOLO(model_path)
         
         # Test on some images from the test set
-        test_images_dir = "yolo_dataset/images/test"
-        if os.path.exists(test_images_dir):
-            test_images = list(Path(test_images_dir).glob("*.jpg"))[:3]  # Test on first 3 images
+        script_dir = Path(__file__).parent
+        test_images_dir = script_dir / "yolo_dataset" / "images" / "test"
+        if test_images_dir.exists():
+            test_images = list(test_images_dir.glob("*.jpg"))[:3]  # Test on first 3 images
             
             for img_path in test_images:
                 print(f"  Testing on: {img_path.name}")
@@ -126,12 +132,13 @@ def test_inference(model_path="thermal_anomaly_model.pt"):
                 results = model(str(img_path))
                 
                 # Save results
-                output_path = f"test_results/{img_path.stem}_prediction.jpg"
-                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                output_dir = script_dir / "test_results"
+                output_dir.mkdir(exist_ok=True)
+                output_path = output_dir / f"{img_path.stem}_prediction.jpg"
                 
                 # Plot results
                 for r in results:
-                    r.save(filename=output_path)
+                    r.save(filename=str(output_path))
                 
                 print(f"    Predictions saved to: {output_path}")
                 print(f"    Detected {len(results[0].boxes)} objects")
@@ -201,10 +208,13 @@ results = model.train(
 4. Deploy model in FastAPI service for real-time detection
 """
     
-    with open("TRAINING_SUMMARY.md", "w") as f:
+    script_dir = Path(__file__).parent
+    summary_path = script_dir / "TRAINING_SUMMARY.md"
+    
+    with open(summary_path, "w") as f:
         f.write(summary)
     
-    print("📋 Training summary saved to: TRAINING_SUMMARY.md")
+    print(f"📋 Training summary saved to: {summary_path}")
 
 def main():
     """Main training pipeline"""
