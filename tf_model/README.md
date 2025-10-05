@@ -5,15 +5,17 @@
 This system provides **automated transformer defect detection** using a two-stage approach:
 
 1. **Stage 1**: Automatically segments and locates transformers in thermal images using YOLOv11 segmentation
-2. **Stage 2**: Detects and classifies 6 types of defects within the segmented transformer region
+2. **Stage 2**: Detects and classifies defects within the segmented transformer region
 
-The system can identify the following defect types:
+### Current Defect Types (6 classes):
 - **Full Wire Overload PF**
 - **Loose Joint F** 
 - **Loose Joint PF**
 - **Point Overload F**
 - **Point Overload PF**
 - **Transformer Overload**
+
+> 💡 **Note**: You can train custom defect models with your own annotated data - see [Training Custom Models](#-training-custom-defect-models) section.
 
 ## 🛠️ System Requirements
 
@@ -150,14 +152,14 @@ source activate_env.sh
 python defect_detection_gui.py
 ```
 
-## 🚀 Running the Two-Stage Detection System
+## 🚀 Running Inference (Detection)
 
 ### Prerequisites
-Before running inference, ensure you have the trained models:
+Ensure you have the trained models in the correct locations:
 - **Transformer Segmentation Model**: `runs/seg_y11n_tx3/weights/best.pt`
 - **Defect Detection Model**: `runs/detect/transformer_defects_v1/weights/best.pt`
 
-If models are missing, refer to the [Model Training](#-model-training) section.
+> ⚠️ **If models are missing**: You need to train them first - see [Training Models](#-training-models) section below.
 
 ### Method 1: Graphical User Interface (Recommended for Beginners)
 
@@ -224,27 +226,34 @@ python two_stage_defect_detection.py \
     --output "custom_output_folder"
 ```
 
-### Method 3: Quick Test with Sample Images
+### Method 3: Direct Python Usage
 ```bash
-# Run automated test with sample images
-python test_two_stage_detection.py
+# Test with a specific image
+python two_stage_defect_detection.py --image "dataset/Sample_Thermal_Images/T1/normal/T1_normal_001.jpg"
 
 # This will:
-# 1. Find sample images automatically
-# 2. Load both models
-# 3. Process a test image
-# 4. Generate results in 'test_results' folder
+# 1. Load both models automatically
+# 2. Process the specified image
+# 3. Generate results in 'detection_results' folder
 ```
 
-### Method 4: Batch Script (Windows Only)
-```bash
-# Double-click or run from command prompt
-run_two_stage_detection.bat
+### Method 4: Python API Integration
+```python
+# For integration into other Python applications
+from two_stage_defect_detection import TwoStageDefectDetector
 
-# This provides an interactive menu with options:
-# 1. Single Image Detection
-# 2. Batch Folder Detection  
-# 3. Test with Sample Image
+# Initialize detector
+detector = TwoStageDefectDetector(
+    transformer_model_path="runs/seg_y11n_tx3/weights/best.pt",
+    defect_model_path="runs/detect/transformer_defects_v1/weights/best.pt",
+    confidence_threshold=0.5
+)
+
+# Load models
+detector.load_models()
+
+# Process single image
+result = detector.process_single_image("path/to/image.jpg")
 ```
 
 ## 📊 Understanding the Results
@@ -382,44 +391,275 @@ nvidia-smi
 python -c "from ultralytics import YOLO; print('YOLO installation OK')"
 ```
 
-## 🏗️ Model Training (Optional)
+## 🏗️ Training Models
 
-If you need to train custom models or retrain existing ones:
+The system consists of two models that work together. Here's how to train each one:
 
-### Train Transformer Segmentation Model
-```bash
-# Using existing dataset
-python simple_train.py
+### 🎯 Training Defect Detection Model (Most Common Use Case)
 
-# With custom parameters
-python config_train.py
+If you want to detect **different types of defects** or **improve detection accuracy** with your own data:
+
+#### Step 1: Prepare Your Data
+1. **Collect thermal images** containing transformers with defects
+2. **Create masked dataset** (transformer regions isolated from background)
+3. **Annotate defects** using tools like [LabelImg](https://github.com/HumanSignal/labelImg), [Roboflow](https://roboflow.com/), or [CVAT](https://cvat.ai/)
+
+#### Step 2: Annotation Guidelines
+```
+📋 Annotation Format: YOLO format (YOLOv11 compatible)
+📂 Required Structure:
+   Transformer Defects/
+   ├── data.yaml          # Dataset configuration
+   ├── train/
+   │   ├── images/        # Training images (.jpg, .png)
+   │   └── labels/        # Training labels (.txt)
+   ├── valid/
+   │   ├── images/        # Validation images
+   │   └── labels/        # Validation labels
+   └── test/              # Optional test set
+       ├── images/
+       └── labels/
+
+🏷️ Label Format: Each .txt file contains:
+   class_id x_center y_center width height
+   (normalized coordinates 0-1)
 ```
 
-### Train Defect Detection Model
+#### Step 3: Dataset Configuration
+Create `Transformer Defects/data.yaml`:
+```yaml
+# Dataset configuration for defect detection
+train: train/images
+val: valid/images
+test: test/images  # optional
+
+# Number of classes
+nc: 6  # Change this to your number of defect types
+
+# Class names (customize for your defects)
+names:
+  0: 'Full Wire Overload PF'
+  1: 'Loose Joint F'
+  2: 'Loose Joint PF'
+  3: 'Point Overload F'
+  4: 'Point Overload PF'
+  5: 'Transformer Overload'
+```
+
+#### Step 4: Replace Dataset and Train
 ```bash
-# Using Transformer Defects dataset
+# 1. Backup current dataset (optional)
+mv "Transformer Defects" "Transformer Defects_backup"
+
+# 2. Add your new dataset
+# Place your annotated dataset in "Transformer Defects" folder
+# Ensure it follows the structure shown in Step 2
+
+# 3. Activate environment
+conda activate transformer_defect_detection
+
+# 4. Train the defect model
 python train_transformer_defects.py
 
-# Monitor training progress in runs/detect/transformer_defects_v1/
+# 5. Monitor training progress
+# Check runs/detect/transformer_defects_v1/ for results
 ```
+
+#### Step 5: Use New Model for Inference
+After training completes, your new model will be saved at:
+- **New model**: `runs/detect/transformer_defects_v1/weights/best.pt`
+
+Update inference scripts to use the new model:
+```bash
+# Use new model in inference
+python two_stage_defect_detection.py \
+    --image "your_image.jpg" \
+    --defect-model "runs/detect/transformer_defects_v1/weights/best.pt"
+
+# Or update the default path in the script
+```
+
+### 🔧 Training Transformer Segmentation Model (Advanced)
+
+Only needed if you want to detect **different types of transformers** or work with **different image types**:
+
+#### When to Retrain:
+- Different transformer designs (indoor vs outdoor, different manufacturers)
+- Different thermal camera specifications
+- Different image resolutions or thermal ranges
+- Poor transformer detection performance
+
+#### Quick Training Process:
+```bash
+# If you have transformer segmentation data in YOLO format
+python simple_train.py  # Basic training script
+
+# Monitor results in runs/seg_y11n_tx*/ folder
+```
+
+> 💡 **Recommendation**: The transformer segmentation model works well for most thermal images. Focus on retraining the defect detection model instead.
+
+## 🔄 Complete Custom Training Workflow
+
+### Scenario: You want to detect new defect types
+
+#### Step-by-Step Process:
+
+1. **Collect Data** (100+ images recommended per defect class)
+   ```bash
+   # Collect thermal images showing:
+   # - Normal transformers
+   # - Various defect types you want to detect
+   ```
+
+2. **Prepare Annotations**
+   ```bash
+   # Use annotation tools:
+   # - Roboflow (web-based, recommended)
+   # - LabelImg (desktop application)
+   # - CVAT (advanced, team collaboration)
+   
+   # Export in YOLOv11 format
+   ```
+
+3. **Organize Dataset**
+   ```bash
+   # Remove old dataset
+   rm -rf "Transformer Defects"  # Linux/macOS
+   # or delete folder in Windows Explorer
+   
+   # Add your new dataset
+   # Ensure structure matches Step 2 above
+   ```
+
+4. **Update Configuration**
+   ```yaml
+   # Edit Transformer Defects/data.yaml
+   nc: 4  # Example: 4 custom defect types
+   names:
+     0: 'Hotspot'
+     1: 'Cold Joint' 
+     2: 'Insulation Failure'
+     3: 'Corrosion'
+   ```
+
+5. **Train Model**
+   ```bash
+   conda activate transformer_defect_detection
+   python train_transformer_defects.py
+   
+   # Training will show:
+   # - Real-time loss graphs
+   # - mAP (mean Average Precision) metrics
+   # - Validation results every few epochs
+   ```
+
+6. **Evaluate Results**
+   ```bash
+   # Check training results
+   ls runs/detect/transformer_defects_v1/
+   
+   # Key files:
+   # - weights/best.pt        (your new model)
+   # - results.png           (training curves)
+   # - confusion_matrix.png  (performance matrix)
+   # - val_batch0_pred.jpg   (sample predictions)
+   ```
+
+7. **Test New Model**
+   ```bash
+   # Test with sample image
+   python two_stage_defect_detection.py --image "dataset/Sample_Thermal_Images/T1/normal/T1_normal_001.jpg"
+   
+   # Or test with your own image
+   python two_stage_defect_detection.py --image "your_test_image.jpg"
+   ```
+
+### 📊 Training Tips
+
+#### Data Quality:
+- **Minimum**: 50 images per class
+- **Recommended**: 200+ images per class
+- **Balance**: Similar number of examples for each defect type
+- **Variety**: Different angles, lighting conditions, transformer types
+
+#### Annotation Quality:
+- **Tight boxes**: Draw boxes closely around defects
+- **Consistency**: Same person should annotate similar defects similarly
+- **Validation**: Double-check annotations before training
+
+#### Training Parameters:
+```bash
+# Default training uses optimized settings
+# For custom tuning, edit train_transformer_defects.py:
+# - epochs: 100-300 (more data = more epochs)
+# - batch_size: 8-32 (based on GPU memory)
+# - image_size: 640 (standard for most cases)
+```
+
+### 📈 Expected Training Results
+
+#### Good Training Indicators:
+- **mAP@0.5 > 0.6**: Good detection performance
+- **Loss decreasing**: Model is learning
+- **Stable validation**: No overfitting
+
+#### Training Time Estimates:
+- **GPU (RTX 30/40 series)**: 30-60 minutes for 100 epochs
+- **CPU**: 3-6 hours for 100 epochs
+- **Dataset size**: 200 images ≈ 30 min, 1000 images ≈ 2 hours
+
+
 
 ## 📁 Directory Structure
 ```
 tf_model/
-├── two_stage_defect_detection.py    # Main detection script
-├── defect_detection_gui.py          # GUI interface
-├── test_two_stage_detection.py      # Quick test script
-├── requirements.txt                 # Python dependencies
-├── README.md                        # This file
-├── TWO_STAGE_DETECTION_README.md   # Detailed documentation
-├── runs/                           # Model weights and training results
-│   ├── seg_y11n_tx3/weights/      # Transformer segmentation model
-│   └── detect/transformer_defects_v1/weights/  # Defect detection model
-├── detection_results/              # Output folder for results
-├── test_results/                   # Test output folder
-├── Sample Thermal Images/          # Sample data for testing
-└── Transformer Defects/           # Training dataset
+├── 🔧 Core Scripts
+│   ├── two_stage_defect_detection.py    # Main CLI detection script
+│   ├── defect_detection_gui.py          # GUI interface
+│   └── train_transformer_defects.py     # Defect model training script
+│
+├── 📚 Documentation & Setup
+│   ├── README.md                        # This file (setup & usage guide)
+│   └── requirements.txt                 # Python dependencies
+│
+├── 🤖 Trained Models
+│   └── runs/
+│       ├── seg_y11n_tx3/weights/       # Transformer segmentation model
+│       └── detect/transformer_defects_v1/weights/  # Defect detection model
+│
+├── 📊 Training & Sample Data
+│   ├── Transformer Defects/            # YOLOv11 format defect dataset
+│   │   ├── data.yaml                   # Dataset configuration
+│   │   ├── train/ (images + labels)    # Training set
+│   │   ├── valid/ (images + labels)    # Validation set  
+│   │   └── test/ (images + labels)     # Test set (optional)
+│   ├── dataset/                        # Original sample images
+│   │   └── Sample_Thermal_Images/      # Test images for inference
+│   └── masked_dataset/                 # Processed training data
+│
+└── 📂 Results & Outputs (created during use)
+    └── detection_results/              # Inference outputs
 ```
+
+### 🎯 Key Files for Different Tasks:
+
+#### **Running Inference** (Most Common):
+- `two_stage_defect_detection.py` - Command line interface
+- `defect_detection_gui.py` - Graphical interface  
+- `dataset/Sample_Thermal_Images/` - Sample images for testing
+
+#### **Training Custom Defect Models**:
+- `train_transformer_defects.py` - Training script
+- `Transformer Defects/` - Your annotated dataset (YOLO format)
+- `runs/detect/` - Training outputs and new models
+
+#### **Required Models** (must exist for inference):
+- `runs/seg_y11n_tx3/weights/best.pt` - Transformer segmentation
+- `runs/detect/transformer_defects_v1/weights/best.pt` - Defect detection
+
+#### **Sample Data for Testing**:
+- `dataset/Sample_Thermal_Images/` - Test images to verify system works
 
 ## 🎯 Best Practices
 
@@ -465,8 +705,49 @@ python two_stage_defect_detection.py --batch "daily_images/"
 # Check detection_results/ folder for outputs
 ```
 
+## 🚀 Quick Reference
+
+### Common Commands:
+```bash
+# Activate environment
+conda activate transformer_defect_detection
+
+# Run GUI (easiest)
+python defect_detection_gui.py
+
+# Test with sample image
+python two_stage_defect_detection.py --image "dataset/Sample_Thermal_Images/T1/normal/T1_normal_001.jpg"
+
+# Single image inference
+python two_stage_defect_detection.py --image "your_image.jpg"
+
+# Batch inference
+python two_stage_defect_detection.py --batch "dataset/Sample_Thermal_Images/T1/"
+
+# Train custom defect model
+python train_transformer_defects.py
+```
+
+### Troubleshooting Checklist:
+- ✅ Environment activated: `conda activate transformer_defect_detection`
+- ✅ Models exist: Check `runs/seg_y11n_tx3/weights/best.pt` and `runs/detect/transformer_defects_v1/weights/best.pt`
+- ✅ Image format supported: JPG, PNG, BMP, TIFF
+- ✅ Thermal image (not RGB photo)
+- ✅ GPU available: `python -c "import torch; print(torch.cuda.is_available())"`
+
+### File Paths:
+- **Inference Results**: `detection_results/` (created automatically)
+- **Sample Images**: `dataset/Sample_Thermal_Images/`
+- **Training Dataset**: `Transformer Defects/` (YOLO format)
+- **Model Outputs**: `runs/detect/transformer_defects_v1/`
+- **Logs**: Check terminal output or `runs/detect/transformer_defects_v1/` folder
+
 ---
 
-**Ready to detect transformer defects! 🔍⚡**
+**🎯 Ready to detect transformer defects! 🔍⚡**
 
-For questions or issues, refer to the troubleshooting section or check the detailed documentation files.
+**Need Help?** 
+1. 📖 Check troubleshooting section above
+2. 🧪 Test with sample: `python two_stage_defect_detection.py --image "dataset/Sample_Thermal_Images/T1/normal/T1_normal_001.jpg"`
+3. 🔍 Ensure models exist and environment is activated
+4. 🎮 Try GUI mode: `python defect_detection_gui.py`
