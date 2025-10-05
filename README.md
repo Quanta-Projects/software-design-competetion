@@ -11,6 +11,7 @@ A comprehensive enterprise-grade web application for managing electrical transfo
 
 - [Project Overview](#project-overview)
 - [Key Features](#key-features)
+- [Latest Updates](#latest-updates)
 - [Technology Stack](#technology-stack)
 - [Prerequisites](#prerequisites)
 - [Installation & Setup](#installation--setup)
@@ -23,6 +24,12 @@ A comprehensive enterprise-grade web application for managing electrical transfo
 ## Project Overview
 
 The **Transformer Management System** is a modern, full-stack web application designed for electrical utility companies and maintenance teams to efficiently manage their transformer infrastructure and inspection operations. The system provides comprehensive CRUD operations, advanced search capabilities, multimedia support, and complete inspection lifecycle management.
+
+## Latest Updates
+
+- **Unified design system** powered by `styles/uiTokens.css`, giving every page shared colors, spacing, and component tokens for quicker theming.
+- **Reusable UI options** moved into `utils/uiOptions.js`, so dropdowns, toggles, and filters stay consistent across transformers, inspections, and uploads.
+- **Refreshed upload experience** with responsive containers, updated progress indicators, and simplified image previews that scale on any device.
 
 ### Core Capabilities
 - **Transformer Asset Management** - Complete lifecycle management of electrical transformers with detailed specifications
@@ -97,6 +104,7 @@ The **Transformer Management System** is a modern, full-stack web application de
 |----------|----------------|-------------|---------------|
 | **Java JDK** | 17 | 21 (LTS) | [Eclipse Temurin](https://adoptium.net/) |
 | **Node.js** | 18.0 | 20.x (LTS) | [Node.js Official](https://nodejs.org/) |
+| **Python** | 3.10 | 3.11+ | [Python.org](https://www.python.org/downloads/) |
 | **MySQL Server** | 8.0 | 8.0.35+ | [MySQL Community](https://dev.mysql.com/downloads/mysql/) |
 | **Git** | 2.30+ | Latest | [Git SCM](https://git-scm.com/) |
 
@@ -216,55 +224,45 @@ REACT_APP_ENVIRONMENT=development
 
 ## Running the Application
 
-### Method 1: Manual Setup (Recommended for Development)
+### Quick Start (Development)
 
-#### Step 1: Start the Backend
+1. **Start the backend**
+   ```powershell
+   cd Back-end\software-design-project-final
+   .\mvnw.cmd spring-boot:run
+   ```
+   Backend API available at http://localhost:8080
 
-```powershell
-# Navigate to backend directory
-cd Back-end\software-design-project-final
+2. **Start the frontend** *(new terminal)*
+   ```powershell
+   cd Front-end
+   npm install
+   npm start
+   ```
+   Web app served at http://localhost:3000
 
-# Install dependencies and start the application
-.\mvnw.cmd clean spring-boot:run
+3. **Start the AI FastAPI service** *(new terminal)*
+  ```powershell
+  cd tf_model
+  python -m venv .venv        # first time only
+  .\.venv\Scripts\activate   # first time + whenever you open a new shell
+  pip install -r requirements.txt
+  python fastapi_server.py
+  ```
+  Detection API available at http://localhost:8001/docs
 
-# Alternative with global Maven (if installed)
-mvn clean spring-boot:run
-```
+### Production Build Snapshot
 
-The backend server will start on **http://localhost:8080**
-
-#### Step 2: Start the Frontend
-
-Open a new terminal window:
-
-```powershell
-# Navigate to frontend directory
-cd Front-end
-
-# Install dependencies
-npm install
-
-# Start the development server
-npm start
-```
-
-The frontend application will start on **http://localhost:3000**
-
-### Method 3: Production Build
-
-#### Build Frontend for Production
-
-```powershell
-cd Front-end
-npm run build
-```
-
-#### Package Backend for Production
-
-```powershell
-cd Back-end\software-design-project-final
-.\mvnw.cmd clean package
-```
+- **Frontend**
+  ```powershell
+  cd Front-end
+  npm run build
+  ```
+- **Backend**
+  ```powershell
+  cd Back-end\software-design-project-final
+  .\mvnw.cmd clean package
+  ```
 
 ### Available Commands
 
@@ -290,6 +288,7 @@ cd Back-end\software-design-project-final
 |---------|-----|-------------|
 | **Frontend Application** | http://localhost:3000 | Main user interface |
 | **Backend API** | http://localhost:8080/api | RESTful API endpoints |
+| **AI Detection Service** | http://localhost:8001/docs | FastAPI documentation & anomaly detection |
 | **Health Check** | http://localhost:8080/actuator/health | Application health status |
 
 ## API Documentation
