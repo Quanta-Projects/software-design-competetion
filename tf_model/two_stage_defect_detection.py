@@ -51,8 +51,8 @@ class TwoStageDefectDetector:
     """Two-stage transformer defect detection system."""
     
     def __init__(self, 
-                 transformer_model_path: str = "runs/seg_y11n_tx3/weights/best.pt",
-                 defect_model_path: str = "runs/detect/transformer_defects_v1/weights/best.pt",
+                 transformer_model_path: str = "weights/segment/best.pt",
+                 defect_model_path: str = "weights/defects/best.pt",
                  confidence_threshold: float = 0.5,
                  output_dir: str = "detection_results"):
         """
@@ -472,9 +472,9 @@ def main():
     parser.add_argument("--image", "-i", type=str, help="Path to input image")
     parser.add_argument("--batch", "-b", type=str, help="Path to folder with images")
     parser.add_argument("--confidence", "-c", type=float, default=0.5, help="Confidence threshold (0-1)")
-    parser.add_argument("--transformer-model", type=str, default="runs/seg_y11n_tx3/weights/best.pt", 
+    parser.add_argument("--transformer-model", type=str, default="weights/segment/best.pt", 
                        help="Path to transformer segmentation model")
-    parser.add_argument("--defect-model", type=str, default="runs/detect/transformer_defects_v1/weights/best.pt",
+    parser.add_argument("--defect-model", type=str, default="weights/defects/best.pt",
                        help="Path to defect detection model")
     parser.add_argument("--output", "-o", type=str, default="detection_results", help="Output directory")
     
