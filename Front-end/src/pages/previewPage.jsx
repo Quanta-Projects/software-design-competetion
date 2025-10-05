@@ -3,12 +3,14 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Container, Button, Offcanvas, Alert, Card, Form } from "react-bootstrap";
 import InspectionHeader from "../components/InspectionHeader";
 import { getRestApiUrl, getImageUrl } from "../utils/config";
+import "../styles/previewPage.css";
 
 const DEFAULT_PREVIEW_HEIGHT = 420;
 const MAX_PREVIEW_HEIGHT = 800;
 const MIN_PREVIEW_HEIGHT = 300;
 const FRAME_RADIUS = 16;
 const SYNC_ZOOM_SCALE = 2.2;
+const WEATHER_OPTIONS = ["SUNNY", "RAINY", "CLOUDY"];
 
 function PanZoomContainFrame({
   src,
@@ -383,6 +385,21 @@ export default function PreviewPage() {
       setSyncZoomOn(true);
     }
   };
+
+  const annotationToolsConfig = [
+    {
+      key: "move",
+      icon: "bi bi-arrows-move",
+      title: "Move (Click and Drag)",
+      handler: handleMoveMode,
+    },
+    {
+      key: "zoom",
+      icon: "bi bi-search",
+      title: "Zoom",
+      handler: handleZoomMode,
+    },
+  ];
 
   // Settings handlers
   const handleSettingsConfirm = async () => {
@@ -1015,7 +1032,7 @@ export default function PreviewPage() {
         </Container>
       </div>
 
-      <Container style={{ maxWidth: 1100 }}>
+  <Container className="ui-page-container">
         {loading && <Alert variant="info" className="mt-3">Loading preview…</Alert>}
         {error && <Alert variant="danger" className="mt-3">{error}</Alert>}
 
@@ -1039,28 +1056,20 @@ export default function PreviewPage() {
 
             <Card className="mt-4">
               <Card.Body className="position-relative">
-                <div className="d-flex justify-content-between align-items-center mb-3">
+                <div className="preview-card-header">
                   <h5 className="mb-0">Thermal Image Comparison</h5>
                   <Button
                     variant="light"
                     size="sm"
-                    className="d-flex align-items-center justify-content-center"
+                    className="preview-settings-btn"
                     onClick={() => setShowSettings(true)}
-                    style={{ 
-                      width: "36px", 
-                      height: "36px", 
-                      borderRadius: "8px",
-                      padding: 0,
-                      background: "#f6f7fb",
-                      border: "1px solid #eceff5"
-                    }}
                     title="Settings"
                   >
                     <i className="bi bi-gear" style={{ fontSize: "18px" }}></i>
                   </Button>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                <div className="preview-image-grid">
                   <PanZoomContainFrame
                     src={resolveImageUrl(comparisonSources.baseline)}
                     label="Baseline"
@@ -1098,109 +1107,69 @@ export default function PreviewPage() {
                 </div>
 
                 {/* Weather Condition and Annotation Tools Row */}
-                <div className="d-flex justify-content-between align-items-end mt-3">
+                <div className="preview-weather-tools">
                   {/* Weather Condition Dropdown */}
-                  <div style={{ width: "250px" }}>
+                  <div className="preview-weather-column">
                     <Form.Label className="mb-2 fw-semibold">Weather Condition</Form.Label>
-                    <Form.Select 
-                      value={weatherCondition} 
+                    <Form.Select
+                      value={weatherCondition}
                       onChange={(e) => handleWeatherChange(e.target.value)}
-                      style={{ 
-                        borderRadius: "8px",
-                        padding: "8px 12px"
-                      }}
+                      aria-label="Select weather condition"
                     >
-                      <option value="SUNNY">Sunny</option>
-                      <option value="RAINY">Rainy</option>
-                      <option value="CLOUDY">Cloudy</option>
+                      {WEATHER_OPTIONS.map(option => (
+                        <option key={option} value={option}>
+                          {option.charAt(0) + option.slice(1).toLowerCase()}
+                        </option>
+                      ))}
                     </Form.Select>
                   </div>
 
                   {/* Right Side: Add Maintenance Button and Annotation Tools */}
-                  <div className="d-flex flex-column align-items-end gap-2">
-                    {/* Add Maintenance Image Button */}
+                  <div className="preview-actions-group">
                     <Button
                       variant="primary"
                       size="sm"
-                      onClick={() => navigate("/upload", { 
-                        state: { 
-                          transformerId, 
+                      onClick={() => navigate("/upload", {
+                        state: {
+                          transformerId,
                           inspectionId,
-                          defaultImageType: "MAINTENANCE" 
-                        } 
+                          defaultImageType: "MAINTENANCE"
+                        }
                       })}
-                      className="d-flex align-items-center"
-                      style={{ 
-                        borderRadius: "6px",
-                        padding: "6px 12px",
-                        backgroundColor: "#3b34d5",
-                        border: "none",
-                        fontWeight: "500",
-                        fontSize: "0.8rem"
-                      }}
+                      className="preview-action-button btn btn-primary align-items-center"
                       title="Add a new maintenance image"
                     >
-                      <i className="bi bi-plus-circle me-1" style={{ fontSize: "14px" }}></i>
-                      Add Maintenance
+                      <i className="bi bi-plus-circle"></i>
+                      <span>Add Maintenance</span>
                     </Button>
 
                     {/* Annotation Tools */}
-                    <div className="d-flex align-items-center gap-2">
-                      <div className="fw-semibold" style={{ fontSize: "0.95rem" }}>Annotation Tools</div>
-                      <div className="d-flex gap-2">
-                        <Button
-                          variant="light"
-                          size="sm"
-                          onClick={handleResetView}
-                          className="d-flex align-items-center justify-content-center"
-                          style={{ 
-                            width: "40px", 
-                            height: "40px", 
-                            borderRadius: "8px",
-                            padding: 0,
-                            background: "#f6f7fb",
-                            border: "1px solid #eceff5"
-                          }}
-                          title="Reset View"
-                        >
-                          <i className="bi bi-arrow-clockwise" style={{ fontSize: "18px" }}></i>
-                        </Button>
-                        <Button
-                          variant="light"
-                          size="sm"
-                          onClick={handleMoveMode}
-                          className="d-flex align-items-center justify-content-center"
-                          style={{ 
-                            width: "40px", 
-                            height: "40px", 
-                            borderRadius: "8px",
-                            padding: 0,
-                            background: annotationTool === "move" ? "#007bff" : "#f6f7fb",
-                            border: annotationTool === "move" ? "1px solid #007bff" : "1px solid #eceff5",
-                            color: annotationTool === "move" ? "#fff" : "inherit"
-                          }}
-                          title="Move (Click and Drag)"
-                        >
-                          <i className="bi bi-arrows-move" style={{ fontSize: "18px" }}></i>
-                        </Button>
-                        <Button
-                          variant="light"
-                          size="sm"
-                          onClick={handleZoomMode}
-                          className="d-flex align-items-center justify-content-center"
-                          style={{ 
-                            width: "40px", 
-                            height: "40px", 
-                            borderRadius: "8px",
-                            padding: 0,
-                            background: annotationTool === "zoom" ? "#007bff" : "#f6f7fb",
-                            border: annotationTool === "zoom" ? "1px solid #007bff" : "1px solid #eceff5",
-                            color: annotationTool === "zoom" ? "#fff" : "inherit"
-                          }}
-                          title="Zoom"
-                        >
-                          <i className="bi bi-search" style={{ fontSize: "18px" }}></i>
-                        </Button>
+                    <div className="preview-annotation-toolbar">
+                      <div className="preview-tool-row">
+                        <div className="fw-semibold fs-6">Annotation Tools</div>
+                        <div className="preview-tool-buttons">
+                          <Button
+                            variant="light"
+                            size="sm"
+                            onClick={handleResetView}
+                            className="preview-tool-button"
+                            title="Reset View"
+                          >
+                            <i className="bi bi-arrow-clockwise" style={{ fontSize: "18px" }}></i>
+                          </Button>
+                          {annotationToolsConfig.map(tool => (
+                            <Button
+                              key={tool.key}
+                              variant="light"
+                              size="sm"
+                              onClick={tool.handler}
+                              className={`preview-tool-button ${annotationTool === tool.key ? "is-active" : ""}`.trim()}
+                              title={tool.title}
+                            >
+                              <i className={tool.icon} style={{ fontSize: "18px" }}></i>
+                            </Button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>

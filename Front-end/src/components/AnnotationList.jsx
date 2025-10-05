@@ -268,21 +268,18 @@ export default function AnnotationList({
                 const classInfo = getClassById(annotation.classId);
                 
                 return (
-                  <Card key={annotation.id} className="mb-2 annotation-card" 
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => onAnnotationSelect && onAnnotationSelect(annotation)}>
+                  <Card
+                    key={annotation.id}
+                    className="mb-2 annotation-card"
+                    onClick={() => onAnnotationSelect && onAnnotationSelect(annotation)}
+                  >
                     <Card.Body className="py-2">
                       <div className="d-flex justify-content-between align-items-start">
                         <div className="flex-grow-1">
                           <div className="d-flex align-items-center mb-1">
-                            <div 
+                            <div
                               className="annotation-color-indicator me-2"
-                              style={{ 
-                                width: '12px', 
-                                height: '12px', 
-                                backgroundColor: classInfo.color,
-                                borderRadius: '2px'
-                              }}
+                              style={{ backgroundColor: classInfo.color }}
                             />
                             <strong>{annotation.className}</strong>
                             <Badge 

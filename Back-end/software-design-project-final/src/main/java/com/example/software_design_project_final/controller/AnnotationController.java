@@ -19,7 +19,6 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/annotations")
-@CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:3000"})
 @RequiredArgsConstructor
 public class AnnotationController {
 

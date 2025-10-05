@@ -1,0 +1,184 @@
+:root {
+  --preview-card-radius: 16px;
+  --preview-light-border: #eceff5;
+  --preview-light-bg: #f6f7fb;
+  --preview-accent: #3b34d5;
+}
+
+.preview-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.preview-settings-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--preview-light-bg);
+  border: 1px solid var(--preview-light-border);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.preview-settings-btn:hover {
+  background: #eef1fa;
+  border-color: #d5dbec;
+}
+
+.preview-image-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.preview-weather-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.preview-weather-column {
+  max-width: 320px;
+}
+
+.preview-actions-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+.preview-action-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 6px;
+  padding: 0.5rem 0.85rem;
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+.preview-action-button .bi {
+  font-size: 0.9rem;
+}
+
+.preview-annotation-toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.preview-tool-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.preview-tool-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.preview-tool-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--preview-light-bg);
+  border: 1px solid var(--preview-light-border);
+  color: inherit;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.preview-tool-button.is-active {
+  background: #0d6efd;
+  border-color: #0d6efd;
+  color: #fff;
+}
+
+.preview-tool-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.35);
+}
+
+.preview-notes-hint {
+  font-size: 0.9rem;
+  color: #6c757d;
+}
+
+.preview-info-pill {
+  background-color: #e7f3ff;
+  border: 1px solid #b3d9ff;
+  color: #0d6efd;
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.preview-errors-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.preview-errors-badge {
+  background-color: #e7f3ff;
+  color: #0d6efd;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+}
+
+@media (min-width: 768px) {
+  .preview-weather-tools {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+
+  .preview-actions-group {
+    align-items: flex-end;
+    text-align: right;
+  }
+}
+
+@media (max-width: 576px) {
+  .preview-action-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .preview-annotation-toolbar {
+    align-items: stretch;
+  }
+
+  .preview-tool-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .preview-tool-buttons {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .preview-tool-button {
+    flex: 1;
+  }
+}

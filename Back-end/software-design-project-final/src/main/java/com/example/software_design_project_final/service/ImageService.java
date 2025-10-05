@@ -28,7 +28,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.Arrays;
+import java.util.List;
 
 /**
  * Service class for Image business logic
@@ -247,10 +247,16 @@ public class ImageService {
                     fileStorageConfig.getMaxFileSize() + " bytes");
         }
 
-        String fileExtension = getFileExtension(file.getOriginalFilename());
-        if (!Arrays.asList(fileStorageConfig.getAllowedFileTypes()).contains(fileExtension.toLowerCase())) {
-            throw new FileStorageException("File type not allowed. Allowed types: " +
-                    Arrays.toString(fileStorageConfig.getAllowedFileTypes()));
+    String fileExtension = getFileExtension(file.getOriginalFilename());
+    List<String> allowedTypes = fileStorageConfig.getAllowedFileTypes();
+
+    boolean isAllowedType = allowedTypes.stream()
+        .map(String::toLowerCase)
+        .anyMatch(allowed -> allowed.equals(fileExtension.toLowerCase()));
+
+    if (!isAllowedType) {
+        throw new FileStorageException("File type not allowed. Allowed types: " +
+            String.join(", ", allowedTypes));
         }
     }
 

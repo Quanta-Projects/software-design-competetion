@@ -87,8 +87,7 @@ export default function InspectionHeader({
           <Button
             onClick={handleBack}
             variant="light"
-            className="rounded-circle p-0 d-flex align-items-center justify-content-center back-btn"
-            style={{ width: 40, height: 40 }}
+            className="ui-circle-btn ui-circle-btn--soft back-btn"
             aria-label="Back to transformers"
           >
             <i className="bi bi-chevron-left fs-5" />
@@ -156,7 +155,7 @@ export default function InspectionHeader({
           <Stack direction="horizontal" gap={2}>
             <Button
               variant="light"
-              className="rounded-4 d-flex align-items-center soft-chip"
+              className="ui-action-chip"
               onClick={onViewBaseline}
               title="View baseline image"
             >
@@ -167,8 +166,7 @@ export default function InspectionHeader({
 
             <Button
               variant="light"
-              className="rounded-circle p-0 d-flex align-items-center justify-content-center soft-icon text-danger"
-              style={{ width: 40, height: 40 }}
+              className="ui-soft-icon text-danger"
               onClick={onDeleteBaseline}
               aria-label="Delete baseline image"
               title="Delete baseline image"
@@ -189,11 +187,11 @@ function InfoChip({ value, label }) {
   const displayValue = value && value !== "null" && value !== "undefined" ? value : "—";
   
   return (
-    <div className="px-3 py-2 rounded-4 soft-chip">
-      <div className="fw-semibold" title={`${label}: ${displayValue}`}>
+    <div className="ui-chip" title={`${label}: ${displayValue}`}>
+      <div className="ui-chip__value">
         {displayValue}
       </div>
-      <div className="text-muted" style={{ fontSize: 12 }}>
+      <div className="ui-chip__label">
         {label}
       </div>
     </div>

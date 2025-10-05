@@ -10,6 +10,7 @@ import TransformerTable from "../components/transformerTable";
 import Pager from "../components/pager";
 import AddTransformerModal from "../components/AddTransformerModal";
 import { getRestApiUrl } from "../utils/config";
+import { TRANSFORMER_SORT_OPTIONS, TIME_RANGE_OPTIONS, SEARCH_PLACEHOLDERS } from "../utils/uiOptions";
 
 export default function TransformersPage() {
   // Load transformers from backend API
@@ -248,6 +249,9 @@ export default function TransformersPage() {
               range={range}   setRange={setRange}
               starOnly={starOnly} setStarOnly={setStarOnly}
               onReset={handleReset}
+              sortOptions={TRANSFORMER_SORT_OPTIONS}
+              rangeOptions={TIME_RANGE_OPTIONS}
+              searchPlaceholder={SEARCH_PLACEHOLDERS.transformers}
             />
           </div>
 

@@ -2,7 +2,7 @@
 // src/components/transformerTable.jsx
 import { useNavigate } from "react-router-dom";
 import React from "react";
-import { Table, Dropdown } from "react-bootstrap";
+import { Table, Dropdown, Button } from "react-bootstrap";
 // If you use the icon below, make sure bootstrap-icons is loaded once in your app entry:
 // import "bootstrap-icons/font/bootstrap-icons.css";
 
@@ -50,7 +50,7 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav,
     <Table striped bordered hover className="align-middle">
       <thead>
         <tr>
-          <th style={{ width: 52 }} aria-label="Favourite" className="text-center" />
+          <th className="text-center" style={{ width: 60 }} aria-label="Favourite" />
           <th>Transformer No.</th>
           <th>Pole NO.</th>
           <th>Region</th>
@@ -65,16 +65,16 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav,
           return (
             <tr key={t.id ?? t.no}>
               <td className="text-center align-middle">
-                <button
+                <Button
                   type="button"
                   onClick={() => onToggleFav?.(t.no)}
                   aria-pressed={!!isFav}
                   aria-label={isFav ? "Unmark favourite" : "Mark as favourite"}
-                  className={`btn ${isFav ? "btn-warning" : "btn-light"} d-inline-flex align-items-center justify-content-center p-0 shadow-sm`}
-                  style={{ width: 25, height: 25, borderRadius: 8 }}
+                  variant={isFav ? "warning" : "light"}
+                  className={`ui-icon-btn ui-icon-btn--sm shadow-sm ${isFav ? "text-dark" : ""}`.trim()}
                 >
-                  <img src="/img/star.png" alt="favorites" width={20} height={20} style={{ display: "block", objectFit: "contain" }} />
-                </button>
+                  <i className={isFav ? "bi bi-star-fill" : "bi bi-star"} aria-hidden="true" />
+                </Button>
               </td>
 
               <td>{t.no}</td>
@@ -85,21 +85,20 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav,
               <td className="text-end">
                 <div className="d-inline-flex align-items-center gap-2">
     
-                  <button
+                  <Button
                     type="button"
-                    className="btn btn-success d-inline-flex align-items-center justify-content-center px-3"
-                    style={{ height: 25 }}
+                    className="ui-btn-compact"
+                    variant="success"
                     onClick={() => handleViewInspectionsClick(t.id)}
                     title="View Inspections"
                   >
                     Inspections
-                  </button>
+                  </Button>
 
                   <Dropdown align="end">
                     <Dropdown.Toggle as={KebabToggle}
                       variant="light"
                       className="d-inline-flex align-items-center justify-content-center p-0"
-                      style={{ width: 32, height: 32, borderRadius: 8 }}
                       aria-label="Row actions"
                     >
                       {/* If you don't use bootstrap-icons, replace with: <span style={{fontSize:18}}>⋮</span> */}

@@ -1,8 +1,22 @@
 import React from "react";
-import { ToggleButtonGroup, ToggleButton ,Button} from "react-bootstrap";
+import { ToggleButtonGroup, ToggleButton, Button } from "react-bootstrap";
 import { useLocation, useNavigate } from "react-router-dom";
 
-function CardTop({ onAdd, title = "Transformers", buttonText = "Add Transformer", showToggle = false, onBack, backPath, hideBack = false }) {
+const DEFAULT_TOGGLE_OPTIONS = [
+  { value: "transformers", label: "Transformers", path: "/transformers" },
+  { value: "inspections", label: "Inspections", path: "/inspections" },
+];
+
+function CardTop({
+  onAdd,
+  title = "Transformers",
+  buttonText = "Add Transformer",
+  showToggle = false,
+  onBack,
+  backPath,
+  hideBack = false,
+  toggleOptions = DEFAULT_TOGGLE_OPTIONS,
+}) {
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -30,15 +44,16 @@ function CardTop({ onAdd, title = "Transformers", buttonText = "Add Transformer"
     }
   };
 
+  const activeTogglePath = toggleOptions.find((opt) => opt.path === location.pathname)?.path;
+
   return (
-    <div className="d-flex align-items-center">
+    <div className="ui-section-header w-100">
       {/* Left icon button - only show if not hidden */}
       {!hideBack && (
         <Button
           onClick={handleBackClick}
           variant="light"
-          className="rounded-circle p-0 d-flex align-items-center justify-content-center back-btn"
-          style={{ width: 40, height: 40 }}
+          className="ui-circle-btn ui-circle-btn--soft back-btn"
           aria-label="Back"
         >
           <i className="bi bi-chevron-left fs-5" />
@@ -46,50 +61,36 @@ function CardTop({ onAdd, title = "Transformers", buttonText = "Add Transformer"
       )}
 
       {/* Title */}
-      <h4 className="card-title mb-0 me-3">{title}</h4>
+      <h4 className="ui-section-header__title card-title">{title}</h4>
 
       {/* Add button */}
-      <button
-        type="button"
-        className="btn btn-primary shadow"
-        onClick={onAdd}                 // <-- opens the modal
-      >
+      <Button type="button" variant="primary" className="shadow" onClick={onAdd}>
         {buttonText}
-      </button>
+      </Button>
 
-      {/* Right toggle buttons - only show on transformer list page */}
-      {showToggle && (
-        <ToggleButtonGroup
-          type="radio"
-          name="options"
-          value={location.pathname === "/inspections" ? 2 : 1}
-          className="ms-auto"
-        >
-          <ToggleButton
-            id="tbg-radio-1"
-            value={1}
-            style={{
-              backgroundColor: location.pathname === "/transformers" ? "#0d6efd" : "white",
-              color: location.pathname === "/transformers" ? "white" : "#0d6efd",
-              borderColor: "#0d6efd",
-            }}
-            onClick={() => navigate("/transformers")}
+      {/* Right toggle buttons */}
+      {showToggle && toggleOptions.length > 0 && (
+        <div className="ui-section-header__actions ms-auto">
+          <ToggleButtonGroup
+            type="radio"
+            name="page-toggle"
+            value={activeTogglePath || toggleOptions[0].path}
+            className="ui-segmented"
           >
-            Transformers
-          </ToggleButton>
-          <ToggleButton
-            id="tbg-radio-2"
-            value={2}
-            style={{
-              backgroundColor: location.pathname === "/inspections" ? "#0d6efd" : "white",
-              color: location.pathname === "/inspections" ? "white" : "#0d6efd",
-              borderColor: "#0d6efd",
-            }}
-            onClick={() => navigate("/inspections")}
-          >
-            Inspections
-          </ToggleButton>
-        </ToggleButtonGroup>
+            {toggleOptions.map((option) => (
+              <ToggleButton
+                key={option.value}
+                id={`card-toggle-${option.value}`}
+                value={option.path}
+                variant={location.pathname === option.path ? "primary" : "outline-primary"}
+                className="ui-toggle-btn"
+                onClick={() => navigate(option.path)}
+              >
+                {option.label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        </div>
       )}
     </div>
   );
