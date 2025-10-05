@@ -1,0 +1,7 @@
+Loose Joint (Faulty)
+Loose Joint (Potential)
+Point Overload (Faulty)
+Point Overload (Potential)
+Full Wire Overload (Potential)
+Hotspot (Review)
+Warm Area (Likely Normal)

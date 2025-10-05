@@ -1,0 +1,11 @@
+{
+  "image_path": "D:\\software-design-competetion\\ai-anomaly-service\\dataset\\Sample_Thermal_Images\\T10\\faulty\\T10_faulty_001.jpg",
+  "image_name": "T10_faulty_001.jpg",
+  "detections": [],
+  "total_detections": 0,
+  "timestamp": "2025-10-02T20:51:35.031581",
+  "confidence_threshold": 0.25,
+  "severity_score": 0,
+  "severity_level": "[[OK]] [MINIMAL]",
+  "detailed_annotated_image_path": "test_results\\T10_faulty_001_detailed_annotated.jpg"
+}

@@ -1,0 +1,9 @@
+THERMAL ANOMALY DETECTION REPORT
+==================================================
+[IMAGE] Image: T10_faulty_001.jpg
+ Timestamp: 2025-10-02T20:51:35.031581
+[TARGET] Total Detections: 0
+[STATS] Severity Score: 0.00
+[[WARNING]]  Severity Level: [[OK]] [MINIMAL]
+
+[[OK]] No anomalies detected - System appears normal

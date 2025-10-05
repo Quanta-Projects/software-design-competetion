@@ -98,8 +98,8 @@ Desktop.ini
 
 ai-anomaly-service/venv/
 
-*.pt
+# *.pt
 
-*results
-*dataset
-*runs
+# *results
+# *dataset
+# *runs

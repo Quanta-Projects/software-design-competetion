@@ -1,0 +1,15 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['Transformer']
+
+roboflow:
+  workspace: transformerfaults-wwfnr
+  project: transformer-segment-zdiwf
+  version: 1
+  license: Private
+  url: https://app.roboflow.com/transformerfaults-wwfnr/transformer-segment-zdiwf/1
+
+

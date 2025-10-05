@@ -1,0 +1,10 @@
+THERMAL ANOMALY DETECTION REPORT
+==================================================
+[IMAGE] Image: T12_faulty_001.jpg
+ Timestamp: 2025-10-02T20:52:52.996334
+[TARGET] Total Detections: 1
+[STATS] Severity Score: 0.47
+[[WARNING]]  Severity Level: [[OK]] [MINIMAL]
+
+[[WARNING]]  POTENTIAL ISSUES:
+   1. Point Overload (Potential) - 0.58

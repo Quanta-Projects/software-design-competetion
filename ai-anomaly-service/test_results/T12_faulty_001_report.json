@@ -1,0 +1,25 @@
+{
+  "image_path": "D:\\software-design-competetion\\ai-anomaly-service\\dataset\\Sample_Thermal_Images\\T12\\faulty\\T12_faulty_001.jpg",
+  "image_name": "T12_faulty_001.jpg",
+  "detections": [
+    {
+      "bbox": [
+        1069.29248046875,
+        564.2586059570312,
+        1120.3223876953125,
+        669.5867919921875
+      ],
+      "confidence": 0.5829829573631287,
+      "class_id": 3,
+      "class_name": "Point Overload (Potential)",
+      "severity": 0.8
+    }
+  ],
+  "total_detections": 1,
+  "timestamp": "2025-10-02T20:52:52.996334",
+  "confidence_threshold": 0.25,
+  "severity_score": 0.466386365890503,
+  "severity_level": "[[OK]] [MINIMAL]",
+  "yolo_annotated_image_path": "test_results\\T12_faulty_001_yolo_annotated.jpg",
+  "detailed_annotated_image_path": "test_results\\T12_faulty_001_detailed_annotated.jpg"
+}

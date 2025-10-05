@@ -1,0 +1,21 @@
+# YOLO Dataset Configuration for Thermal Anomaly Detection
+# Generated on 2025-10-02 09:37:54
+
+# Dataset paths (relative to this config file)
+path: D:\software-design-competetion\ai-anomaly-service\yolo_dataset  # dataset root dir
+train: images/train  # train images (relative to 'path')
+val: images/val      # val images (relative to 'path')
+test: images/test    # test images (relative to 'path')
+
+# Number of classes
+nc: 7
+
+# Class names
+names:
+  0: 'Loose Joint (Faulty)'
+  1: 'Loose Joint (Potential)'
+  2: 'Point Overload (Faulty)'
+  3: 'Point Overload (Potential)'
+  4: 'Full Wire Overload (Potential)'
+  5: 'Hotspot (Review)'
+  6: 'Warm Area (Likely Normal)'
