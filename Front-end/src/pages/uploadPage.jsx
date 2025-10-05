@@ -133,8 +133,6 @@ export default function UploadPage() {
       return;
     }
     
-    console.log("Processing image file:", imageFile.name, "Size:", imageFile.size);
-    
     // Keep the original 'file' field for FastAPI, but add 'image' field for Spring Boot
     formData.append('image', imageFile);  // Spring Boot expects 'image'
 
@@ -147,7 +145,6 @@ export default function UploadPage() {
 
     // Get the image type from form data
     const imageType = formData.get('imageType')?.toUpperCase();
-    console.log("Image type:", imageType);
 
     try {
       // Only run anomaly detection for MAINTENANCE images

@@ -128,15 +128,12 @@ export default function ImageViewer() {
     if (imageData) {
       if (imageData.transformerId) {
         state.transformerId = imageData.transformerId;
-        console.log('ImageViewer: Navigating back with transformerId:', imageData.transformerId);
       }
       if (imageData.inspectionId) {
         state.inspectionId = imageData.inspectionId;
-        console.log('ImageViewer: Navigating back with inspectionId:', imageData.inspectionId);
       }
     }
     
-    console.log('ImageViewer: Navigation state:', state);
     navigate('/upload', { state });
   };
 

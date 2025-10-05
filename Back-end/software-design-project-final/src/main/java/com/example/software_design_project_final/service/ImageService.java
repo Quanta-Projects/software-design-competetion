@@ -12,6 +12,7 @@ import com.example.software_design_project_final.repository.AnnotationRepository
 import com.example.software_design_project_final.config.FileStorageConfig;
 import com.example.software_design_project_final.exception.ResourceNotFoundException;
 import com.example.software_design_project_final.exception.FileStorageException;
+import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,7 @@ import java.util.Arrays;
  * Service class for Image business logic
  * Handles file upload, storage, and image metadata management
  */
+@Slf4j
 @Service
 @Transactional
 public class ImageService {
@@ -205,10 +207,10 @@ public class ImageService {
             var annotations = annotationRepository.findAllAnnotationsByImageId(id);
             if (!annotations.isEmpty()) {
                 annotationRepository.deleteAll(annotations);
-                System.out.println("Deleted " + annotations.size() + " annotations for image ID: " + id);
+                log.info("Deleted {} annotations for image ID: {}", annotations.size(), id);
             }
         } catch (Exception ex) {
-            System.err.println("Error deleting annotations for image " + id + ": " + ex.getMessage());
+            log.error("Error deleting annotations for image {}: {}", id, ex.getMessage());
             // Continue with image deletion even if annotation deletion fails
         }
 
@@ -218,7 +220,7 @@ public class ImageService {
             Files.deleteIfExists(filePath);
         } catch (IOException ex) {
             // Log the error but don't fail the operation
-            System.err.println("Could not delete file: " + image.getFilePath());
+            log.error("Could not delete file: {}", image.getFilePath(), ex);
         }
 
         // Finally, delete the image record

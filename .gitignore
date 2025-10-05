@@ -103,3 +103,7 @@ ai-anomaly-service/venv/
 *results
 *dataset
 *runs
+
+tf_model/transformer_defect_env
+tf_model/__pycache__
+*.cpython-*.pyc

@@ -41,8 +41,6 @@ export default function TransformersPage() {
         ]);
 
         if (!cancelled) {
-          console.log("Fetched transformers:", transformersJson);
-          console.log("Sample transformer:", transformersJson[0]);
           setAllTransformers(transformersJson);
           setRegions(regionsJson);
           setTypes(typesJson);
@@ -84,10 +82,6 @@ export default function TransformersPage() {
   const [editing, setEditing] = useState(null); // holds the row being edited or null
 
   const handleEdit = (row) => {
-    console.log("Original row data:", row);
-    console.log("Row region type:", typeof row.region, row.region);
-    console.log("Row transformerType type:", typeof row.transformerType, row.transformerType);
-    
     // Map backend field names to frontend field names for the modal
     const editData = {
       region: row.region || "",
@@ -96,7 +90,6 @@ export default function TransformersPage() {
       type: row.transformerType || "",
       location: row.location || "",
     };
-    console.log("Mapped edit data:", editData);
     setEditing({ ...row, ...editData }); // Keep original row data plus mapped fields
     setShowAdd(true);
   };
