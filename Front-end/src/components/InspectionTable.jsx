@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import React from "react";
-import { Table, Dropdown, Badge } from "react-bootstrap";
+import { Table, Dropdown, Badge, Button } from "react-bootstrap";
 
 const KebabToggle = React.forwardRef(({ onClick }, ref) => (
   <button
@@ -87,7 +87,7 @@ export default function InspectionTable({
     <Table striped bordered hover className="align-middle">
       <thead>
         <tr>
-          <th style={{ width: 52 }} aria-label="Favourite" className="text-center" />
+          <th className="text-center" style={{ width: 60 }} aria-label="Favourite" />
           <th>Inspection No.</th>
           <th>Inspected Date</th>
           <th>Maintenance Date</th>
@@ -103,16 +103,16 @@ export default function InspectionTable({
           return (
             <tr key={insp.id}>
               <td className="text-center align-middle">
-                <button
+                <Button
                   type="button"
                   onClick={() => onToggleFav?.(insp.inspectionNo)}
                   aria-pressed={!!isFav}
                   aria-label={isFav ? "Unmark favourite" : "Mark as favourite"}
-                  className={`btn ${isFav ? "btn-warning" : "btn-light"} d-inline-flex align-items-center justify-content-center p-0 shadow-sm`}
-                  style={{ width: 25, height: 25, borderRadius: 8 }}
+                  variant={isFav ? "warning" : "light"}
+                  className={`ui-icon-btn ui-icon-btn--sm shadow-sm ${isFav ? "text-dark" : ""}`.trim()}
                 >
-                  <img src="/img/star.png" alt="favorites" width={20} height={20} style={{ display: "block", objectFit: "contain" }} />
-                </button>
+                  <i className={isFav ? "bi bi-star-fill" : "bi bi-star"} aria-hidden="true" />
+                </Button>
               </td>
 
               <td>
@@ -135,20 +135,19 @@ export default function InspectionTable({
               {/* Last column: View + 3-dots actions */}
               <td className="text-end">
                 <div className="d-inline-flex align-items-center gap-2">
-                  <button
+                  <Button
                     type="button"
-                    className="btn btn-primary d-inline-flex align-items-center justify-content-center px-3"
-                    style={{ height: 25 }}
+                    className="ui-btn-compact"
+                    variant="primary"
                     onClick={() => onView?.(insp.id)}
                   >
                     View
-                  </button>
+                  </Button>
 
                   <Dropdown align="end">
                     <Dropdown.Toggle as={KebabToggle}
                       variant="light"
                       className="d-inline-flex align-items-center justify-content-center p-0"
-                      style={{ width: 32, height: 32, borderRadius: 8 }}
                       aria-label="Row actions"
                     >
                       <i className="bi bi-three-dots-vertical" />

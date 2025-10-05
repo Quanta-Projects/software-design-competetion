@@ -3,12 +3,14 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Container, Button, Offcanvas, Alert, Card, Form } from "react-bootstrap";
 import InspectionHeader from "../components/InspectionHeader";
 import { getRestApiUrl, getImageUrl } from "../utils/config";
+import "../styles/previewPage.css";
 
 const DEFAULT_PREVIEW_HEIGHT = 420;
 const MAX_PREVIEW_HEIGHT = 800;
 const MIN_PREVIEW_HEIGHT = 300;
 const FRAME_RADIUS = 16;
 const SYNC_ZOOM_SCALE = 2.2;
+const WEATHER_OPTIONS = ["SUNNY", "RAINY", "CLOUDY"];
 
 function PanZoomContainFrame({
   src,
@@ -24,11 +26,42 @@ function PanZoomContainFrame({
   containerHeight = DEFAULT_PREVIEW_HEIGHT,
   resetTrigger,
   annotationTool,
+  annotations = [], // Array of annotations to draw bounding boxes
+  imageId = null, // ID of the current image to filter annotations
 }) {
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [panning, setPanning] = useState(false);
   const panRef = useRef({ startX: 0, startY: 0, startOffset: { x: 0, y: 0 } });
+  const canvasRef = useRef(null);
+  const imgRef = useRef(null);
+  const [imgDimensions, setImgDimensions] = useState({ width: 0, height: 0 });
+  const containerRef = useRef(null);
+
+  // Prevent page scrolling when mouse is over the image container
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e) => {
+      // Always prevent page scroll when hovering over image
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Handle zoom if move tool is active and not in sync zoom mode
+      if (annotationTool === "move" && !syncZoomOn) {
+        const factor = e.deltaY < 0 ? 1.1 : 0.9;
+        setZoom((z) => Math.min(6, Math.max(1, z * factor)));
+      }
+    };
+
+    // Add listener with { passive: false } to allow preventDefault
+    container.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, [annotationTool, syncZoomOn]);
 
   // Reset zoom and offset when resetTrigger changes
   useEffect(() => {
@@ -38,14 +71,123 @@ function PanZoomContainFrame({
     }
   }, [resetTrigger]);
 
-  const onWheelZoom = (e) => {
-    // Only allow zoom if move tool is selected
-    if (annotationTool !== "move") return;
-    if (syncZoomOn) return;
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.1 : 0.9;
-    setZoom((z) => Math.min(6, Math.max(1, z * factor)));
-  };
+  // Handle image load to get dimensions and draw annotations
+  useEffect(() => {
+    if (!imgRef.current) return;
+    
+    const img = imgRef.current;
+    const handleImageLoad = () => {
+      setImgDimensions({
+        width: img.naturalWidth,
+        height: img.naturalHeight
+      });
+    };
+
+    if (img.complete) {
+      handleImageLoad();
+    } else {
+      img.addEventListener('load', handleImageLoad);
+      return () => img.removeEventListener('load', handleImageLoad);
+    }
+  }, [src]);
+
+  // Draw annotations on canvas
+  useEffect(() => {
+    if (!canvasRef.current || !imgDimensions.width || !imgDimensions.height) return;
+    if (!annotations || annotations.length === 0) return;
+    if (!imageId) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    // Set canvas size to match the displayed image container
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    
+    // Clear previous drawings
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Filter annotations for this specific image
+    const imageAnnotations = annotations.filter(ann => ann.imageId === imageId);
+    
+    if (imageAnnotations.length === 0) return;
+
+    // Calculate scale factors based on how the image is displayed (object-fit: contain)
+    const containerWidth = canvas.width;
+    const containerHeight = canvas.height;
+    const imageAspect = imgDimensions.width / imgDimensions.height;
+    const containerAspect = containerWidth / containerHeight;
+    
+    let displayWidth, displayHeight, offsetX, offsetY;
+    
+    if (imageAspect > containerAspect) {
+      // Image is wider - fit to width
+      displayWidth = containerWidth;
+      displayHeight = containerWidth / imageAspect;
+      offsetX = 0;
+      offsetY = (containerHeight - displayHeight) / 2;
+    } else {
+      // Image is taller - fit to height
+      displayHeight = containerHeight;
+      displayWidth = containerHeight * imageAspect;
+      offsetX = (containerWidth - displayWidth) / 2;
+      offsetY = 0;
+    }
+
+    const scaleX = displayWidth / imgDimensions.width;
+    const scaleY = displayHeight / imgDimensions.height;
+
+    // Draw each annotation
+    imageAnnotations.forEach(annotation => {
+      if (!annotation.boundingBox) return;
+      
+      const { x1, y1, x2, y2 } = annotation.boundingBox;
+      
+      // Calculate scaled positions
+      const scaledX = offsetX + (x1 * scaleX);
+      const scaledY = offsetY + (y1 * scaleY);
+      const scaledWidth = (x2 - x1) * scaleX;
+      const scaledHeight = (y2 - y1) * scaleY;
+
+      // Determine color based on severity
+      let boxColor;
+      switch (annotation.severityLevel) {
+        case 'CRITICAL':
+          boxColor = '#dc3545'; // Red
+          break;
+        case 'HIGH':
+          boxColor = '#fd7e14'; // Orange
+          break;
+        case 'MEDIUM':
+          boxColor = '#ffc107'; // Yellow
+          break;
+        case 'LOW':
+          boxColor = '#28a745'; // Green
+          break;
+        default:
+          boxColor = '#007bff'; // Blue
+      }
+
+      // Draw bounding box
+      ctx.strokeStyle = boxColor;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
+
+      // Draw label background
+      const label = `${annotation.errorType} (${(annotation.confidence * 100).toFixed(0)}%)`;
+      ctx.font = '12px Arial';
+      const textMetrics = ctx.measureText(label);
+      const textWidth = textMetrics.width + 8;
+      const textHeight = 20;
+      
+      ctx.fillStyle = boxColor;
+      ctx.fillRect(scaledX, scaledY - textHeight, textWidth, textHeight);
+      
+      // Draw label text
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(label, scaledX + 4, scaledY - 6);
+    });
+  }, [annotations, imageId, imgDimensions, src]);
 
   const onMouseDown = (e) => {
     // Only allow panning if move tool is selected
@@ -61,8 +203,14 @@ function PanZoomContainFrame({
   };
 
   const onMouseMove = (e) => {
-    if (syncZoomOn) { onSyncMove?.(e); return; }
+    if (syncZoomOn) { 
+      e.preventDefault();
+      e.stopPropagation();
+      onSyncMove?.(e); 
+      return; 
+    }
     if (!panning) return;
+    e.preventDefault();
     const dx = e.clientX - panRef.current.startX;
     const dy = e.clientY - panRef.current.startY;
     setOffset({
@@ -80,10 +228,11 @@ function PanZoomContainFrame({
 
   const frameHandlers = syncZoomOn
     ? { onMouseEnter: onSyncEnter, onMouseLeave: onSyncLeave, onMouseMove }
-    : { onWheel: onWheelZoom, onMouseDown, onMouseMove, onMouseUp: endPan, onMouseLeave: endPan, onDoubleClick };
+    : { onMouseDown, onMouseMove, onMouseUp: endPan, onMouseLeave: endPan, onDoubleClick };
 
   return (
     <div
+      ref={containerRef}
       {...frameHandlers}
       style={{
         position: "relative",
@@ -127,6 +276,7 @@ function PanZoomContainFrame({
       <div style={{ position: "absolute", inset: 0, ...(syncStyle || {}) }}>
         {src ? (
           <img
+            ref={imgRef}
             src={src}
             alt={label}
             draggable={false}
@@ -147,6 +297,22 @@ function PanZoomContainFrame({
           >
             No image
           </div>
+        )}
+        
+        {/* Canvas overlay for annotations */}
+        {annotations && annotations.length > 0 && imageId && (
+          <canvas
+            ref={canvasRef}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+              transform: syncZoomOn ? undefined : `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+              transformOrigin: "center center",
+            }}
+          />
         )}
       </div>
 
@@ -219,6 +385,21 @@ export default function PreviewPage() {
       setSyncZoomOn(true);
     }
   };
+
+  const annotationToolsConfig = [
+    {
+      key: "move",
+      icon: "bi bi-arrows-move",
+      title: "Move (Click and Drag)",
+      handler: handleMoveMode,
+    },
+    {
+      key: "zoom",
+      icon: "bi bi-search",
+      title: "Zoom",
+      handler: handleZoomMode,
+    },
+  ];
 
   // Settings handlers
   const handleSettingsConfirm = async () => {
@@ -460,7 +641,29 @@ export default function PreviewPage() {
         const [transformerData, imagesData] = await Promise.all([transformerRes.json(), imagesRes.json()]);
         if (on) {
           setRecord(transformerData);
-          setImages(imagesData);
+          
+          // Filter images by inspectionId if provided
+          const filteredImages = inspectionId 
+            ? imagesData.filter(img => img.inspectionId === inspectionId)
+            : imagesData;
+          
+          console.log(`Preview: Filtering images for inspection ${inspectionId || 'all'}`);
+          console.log(`Preview: Total images: ${imagesData.length}, Filtered: ${filteredImages.length}`);
+          
+          // Redirect to upload page if no images found
+          if (filteredImages.length === 0) {
+            console.log('Preview: No images found, redirecting to upload page');
+            navigate("/upload", { 
+              state: { 
+                transformerId, 
+                inspectionId,
+                message: 'No images found for this inspection. Please upload images.' 
+              } 
+            });
+            return;
+          }
+          
+          setImages(filteredImages);
         }
       } catch (e) {
         if (on) setError(e.message || String(e));
@@ -471,7 +674,7 @@ export default function PreviewPage() {
 
     return () => { on = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transformerId]);
+  }, [transformerId, inspectionId, navigate]);
 
   const createdPretty = useMemo(
     () => (record?.createdAt ? formatPretty(record.createdAt) : "—"),
@@ -500,18 +703,13 @@ export default function PreviewPage() {
         return tb - ta;
       })[0] || null;
 
-  // Find the best maintenance image - prioritize ANNOTATED over MAINTENANCE
+  // Find the best maintenance image - only return MAINTENANCE type (never ANNOTATED)
+  // We will draw annotations dynamically on the original image
   const findBestMaintenanceImage = () => {
-    // First try to find an annotated image
-    const annotatedImage = findLatestByType("ANNOTATED");
-    if (annotatedImage) {
-      console.log("Preview: Using ANNOTATED image for maintenance view:", annotatedImage.fileName);
-      return annotatedImage;
-    }
-    // Fallback to regular maintenance image
+    // Always use the original MAINTENANCE image
     const maintenanceImage = findLatestByType("MAINTENANCE");
     if (maintenanceImage) {
-      console.log("Preview: Using MAINTENANCE image (no annotated version found):", maintenanceImage.fileName);
+      console.log("Preview: Using MAINTENANCE image for dynamic annotation display:", maintenanceImage.fileName);
     }
     return maintenanceImage;
   };
@@ -588,12 +786,26 @@ export default function PreviewPage() {
   // Helper function to determine severity level
   const getSeverityLevel = (className) => {
     const classLower = className.toLowerCase();
-    if (classLower.includes('faulty') || classLower.includes('critical')) {
-      return 'CRITICAL';
-    } else if (classLower.includes('potential') || classLower.includes('warning')) {
+    
+    // Match the actual class names from the AI model:
+    // - "F" suffix = Faulty (CRITICAL)
+    // - "PF" suffix = Potentially Faulty (HIGH or MEDIUM)
+    // - "Transformer Overload" = MEDIUM
+    
+    // Check for specific patterns based on actual class names
+    if (classLower.includes(' pf') || classLower.includes('potentially')) {
+      // "PF" = Potentially Faulty (HIGH severity)
       return 'HIGH';
-    } else if (classLower.includes('cooling') || classLower.includes('moderate')) {
+    } else if (classLower.includes(' f') && !classLower.includes(' pf')) {
+      // "F" = Faulty (CRITICAL severity) - but not "PF"
+      // Matches: "Loose Joint F", "Point Overload F"
+      return 'CRITICAL';
+    } else if (classLower.includes('transformer overload')) {
+      // Full transformer overload is MEDIUM
       return 'MEDIUM';
+    } else if (classLower.includes('overload') || classLower.includes('loose joint')) {
+      // Generic fallback for overload/loose joint without suffix
+      return 'HIGH';
     } else {
       return 'LOW';
     }
@@ -614,6 +826,42 @@ export default function PreviewPage() {
         return '#6c757d'; // Gray
     }
   };
+
+  // Filter annotations based on rule settings
+  const getFilteredAnnotations = (annotations) => {
+    if (!annotations || annotations.length === 0) return [];
+    
+    return annotations.filter(annotation => {
+      const classNameLower = annotation.errorType.toLowerCase();
+      
+      // Rule 2: Loose Joint Condition
+      // Includes: "Loose Joint F", "Loose Joint PF"
+      const isLooseJoint = classNameLower.includes('loose joint');
+      
+      // Rule 3: Overloaded Condition  
+      // Includes: "Point Overload F", "Point Overload PF", "Full Wire Overload PF", "Transformer Overload"
+      const isOverload = classNameLower.includes('overload');
+      
+      // Filter based on toggle states
+      if (isLooseJoint && !rule2Enabled) return false;
+      if (isOverload && !rule3Enabled) return false;
+      
+      return true;
+    });
+  };
+
+  // Store all annotations (unfiltered)
+  const [allAnnotations, setAllAnnotations] = useState([]);
+
+  // Filtered annotations based on rule settings
+  const filteredAnnotations = useMemo(() => {
+    return getFilteredAnnotations(allAnnotations);
+  }, [allAnnotations, rule2Enabled, rule3Enabled]);
+
+  // Update anomalyErrors to use filtered annotations
+  useEffect(() => {
+    setAnomalyErrors(filteredAnnotations);
+  }, [filteredAnnotations]);
 
   // Fetch anomaly errors from backend
   useEffect(() => {
@@ -702,15 +950,15 @@ export default function PreviewPage() {
               annotationType: annotation.annotationType
             }));
 
-          setAnomalyErrors(transformedAnomalies);
+          setAllAnnotations(transformedAnomalies);
           console.log(`Loaded ${transformedAnomalies.length} detected anomalies from database`);
         } else {
           console.log('No anomaly annotations available for this inspection');
-          setAnomalyErrors([]);
+          setAllAnnotations([]);
         }
       } catch (err) {
         console.error('Error fetching anomaly annotations:', err);
-        setAnomalyErrors([]);
+        setAllAnnotations([]);
       } finally {
         setLoadingErrors(false);
       }
@@ -722,17 +970,18 @@ export default function PreviewPage() {
   const baselineMeta = formatUpload(getUploadedAt(comparisonSources.baseline));
   const currentMeta  = formatUpload(getUploadedAt(comparisonSources.current));
 
-  const goBackToUploads = () => {
+  const goBackToInspections = () => {
+    // Navigate back to inspections page for this transformer
+    navigate("/inspections", { state: { transformerId } });
+  };
+
+  const handleViewBaseline = () => {
+    // Navigate to upload page when "Baseline Image" button is clicked
     const state = { transformerId };
     if (inspectionId) {
       state.inspectionId = inspectionId;
     }
     navigate("/upload", { state });
-  };
-
-  const handleViewBaseline = () => {
-    // Navigate to upload page when "Baseline Image" button is clicked
-    goBackToUploads();
   };
 
   const handleDeleteBaseline = async () => {
@@ -754,8 +1003,8 @@ export default function PreviewPage() {
 
       if (response.ok) {
         console.log('Baseline image deleted successfully');
-        // Redirect to upload page after successful deletion
-        goBackToUploads();
+        // Redirect to inspections page after successful deletion
+        goBackToInspections();
       } else {
         const errorText = await response.text();
         console.error('Failed to delete baseline image:', errorText);
@@ -783,7 +1032,7 @@ export default function PreviewPage() {
         </Container>
       </div>
 
-      <Container style={{ maxWidth: 1100 }}>
+  <Container className="ui-page-container">
         {loading && <Alert variant="info" className="mt-3">Loading preview…</Alert>}
         {error && <Alert variant="danger" className="mt-3">{error}</Alert>}
 
@@ -799,7 +1048,7 @@ export default function PreviewPage() {
                 branch={record.region}
                 inspectedBy={"A-110"}
                 status={{ text: "In progress", variant: "success" }}
-                onBack={goBackToUploads}
+                onBack={goBackToInspections}
                 onViewBaseline={handleViewBaseline}
                 onDeleteBaseline={handleDeleteBaseline}
               />
@@ -807,28 +1056,20 @@ export default function PreviewPage() {
 
             <Card className="mt-4">
               <Card.Body className="position-relative">
-                <div className="d-flex justify-content-between align-items-center mb-3">
+                <div className="preview-card-header">
                   <h5 className="mb-0">Thermal Image Comparison</h5>
                   <Button
                     variant="light"
                     size="sm"
-                    className="d-flex align-items-center justify-content-center"
+                    className="preview-settings-btn"
                     onClick={() => setShowSettings(true)}
-                    style={{ 
-                      width: "36px", 
-                      height: "36px", 
-                      borderRadius: "8px",
-                      padding: 0,
-                      background: "#f6f7fb",
-                      border: "1px solid #eceff5"
-                    }}
                     title="Settings"
                   >
                     <i className="bi bi-gear" style={{ fontSize: "18px" }}></i>
                   </Button>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                <div className="preview-image-grid">
                   <PanZoomContainFrame
                     src={resolveImageUrl(comparisonSources.baseline)}
                     label="Baseline"
@@ -843,12 +1084,14 @@ export default function PreviewPage() {
                     containerHeight={containerHeight}
                     resetTrigger={resetTrigger}
                     annotationTool={annotationTool}
+                    annotations={[]}
+                    imageId={null}
                   />
                   <PanZoomContainFrame
                     src={resolveImageUrl(comparisonSources.current)}
-                    label={comparisonSources.current?.imageType?.toUpperCase() === "ANNOTATED" ? "Current (Annotated)" : "Current"}
+                    label="Current (With Detections)"
                     metaText={currentMeta}
-                    badgeColor={comparisonSources.current?.imageType?.toUpperCase() === "ANNOTATED" ? "rgba(40,167,69,0.95)" : "rgba(59,52,213,0.95)"}
+                    badgeColor="rgba(40,167,69,0.95)"
                     syncZoomOn={syncZoomOn}
                     isHoveringSync={isHoveringSync}
                     onSyncEnter={onSyncEnter}
@@ -858,113 +1101,75 @@ export default function PreviewPage() {
                     containerHeight={containerHeight}
                     resetTrigger={resetTrigger}
                     annotationTool={annotationTool}
+                    annotations={filteredAnnotations}
+                    imageId={comparisonSources.current?.id}
                   />
                 </div>
 
                 {/* Weather Condition and Annotation Tools Row */}
-                <div className="d-flex justify-content-between align-items-end mt-3">
+                <div className="preview-weather-tools">
                   {/* Weather Condition Dropdown */}
-                  <div style={{ width: "250px" }}>
+                  <div className="preview-weather-column">
                     <Form.Label className="mb-2 fw-semibold">Weather Condition</Form.Label>
-                    <Form.Select 
-                      value={weatherCondition} 
+                    <Form.Select
+                      value={weatherCondition}
                       onChange={(e) => handleWeatherChange(e.target.value)}
-                      style={{ 
-                        borderRadius: "8px",
-                        padding: "8px 12px"
-                      }}
+                      aria-label="Select weather condition"
                     >
-                      <option value="SUNNY">Sunny</option>
-                      <option value="RAINY">Rainy</option>
-                      <option value="CLOUDY">Cloudy</option>
+                      {WEATHER_OPTIONS.map(option => (
+                        <option key={option} value={option}>
+                          {option.charAt(0) + option.slice(1).toLowerCase()}
+                        </option>
+                      ))}
                     </Form.Select>
                   </div>
 
                   {/* Right Side: Add Maintenance Button and Annotation Tools */}
-                  <div className="d-flex flex-column align-items-end gap-2">
-                    {/* Add Maintenance Image Button */}
+                  <div className="preview-actions-group">
                     <Button
                       variant="primary"
                       size="sm"
-                      onClick={() => navigate("/upload", { 
-                        state: { 
-                          transformerId, 
+                      onClick={() => navigate("/upload", {
+                        state: {
+                          transformerId,
                           inspectionId,
-                          defaultImageType: "MAINTENANCE" 
-                        } 
+                          defaultImageType: "MAINTENANCE"
+                        }
                       })}
-                      className="d-flex align-items-center"
-                      style={{ 
-                        borderRadius: "6px",
-                        padding: "6px 12px",
-                        backgroundColor: "#3b34d5",
-                        border: "none",
-                        fontWeight: "500",
-                        fontSize: "0.8rem"
-                      }}
+                      className="preview-action-button btn btn-primary align-items-center"
                       title="Add a new maintenance image"
                     >
-                      <i className="bi bi-plus-circle me-1" style={{ fontSize: "14px" }}></i>
-                      Add Maintenance
+                      <i className="bi bi-plus-circle"></i>
+                      <span>Add Maintenance</span>
                     </Button>
 
                     {/* Annotation Tools */}
-                    <div className="d-flex align-items-center gap-2">
-                      <div className="fw-semibold" style={{ fontSize: "0.95rem" }}>Annotation Tools</div>
-                      <div className="d-flex gap-2">
-                        <Button
-                          variant="light"
-                          size="sm"
-                          onClick={handleResetView}
-                          className="d-flex align-items-center justify-content-center"
-                          style={{ 
-                            width: "40px", 
-                            height: "40px", 
-                            borderRadius: "8px",
-                            padding: 0,
-                            background: "#f6f7fb",
-                            border: "1px solid #eceff5"
-                          }}
-                          title="Reset View"
-                        >
-                          <i className="bi bi-arrow-clockwise" style={{ fontSize: "18px" }}></i>
-                        </Button>
-                        <Button
-                          variant="light"
-                          size="sm"
-                          onClick={handleMoveMode}
-                          className="d-flex align-items-center justify-content-center"
-                          style={{ 
-                            width: "40px", 
-                            height: "40px", 
-                            borderRadius: "8px",
-                            padding: 0,
-                            background: annotationTool === "move" ? "#007bff" : "#f6f7fb",
-                            border: annotationTool === "move" ? "1px solid #007bff" : "1px solid #eceff5",
-                            color: annotationTool === "move" ? "#fff" : "inherit"
-                          }}
-                          title="Move (Click and Drag)"
-                        >
-                          <i className="bi bi-arrows-move" style={{ fontSize: "18px" }}></i>
-                        </Button>
-                        <Button
-                          variant="light"
-                          size="sm"
-                          onClick={handleZoomMode}
-                          className="d-flex align-items-center justify-content-center"
-                          style={{ 
-                            width: "40px", 
-                            height: "40px", 
-                            borderRadius: "8px",
-                            padding: 0,
-                            background: annotationTool === "zoom" ? "#007bff" : "#f6f7fb",
-                            border: annotationTool === "zoom" ? "1px solid #007bff" : "1px solid #eceff5",
-                            color: annotationTool === "zoom" ? "#fff" : "inherit"
-                          }}
-                          title="Zoom"
-                        >
-                          <i className="bi bi-search" style={{ fontSize: "18px" }}></i>
-                        </Button>
+                    <div className="preview-annotation-toolbar">
+                      <div className="preview-tool-row">
+                        <div className="fw-semibold fs-6">Annotation Tools</div>
+                        <div className="preview-tool-buttons">
+                          <Button
+                            variant="light"
+                            size="sm"
+                            onClick={handleResetView}
+                            className="preview-tool-button"
+                            title="Reset View"
+                          >
+                            <i className="bi bi-arrow-clockwise" style={{ fontSize: "18px" }}></i>
+                          </Button>
+                          {annotationToolsConfig.map(tool => (
+                            <Button
+                              key={tool.key}
+                              variant="light"
+                              size="sm"
+                              onClick={tool.handler}
+                              className={`preview-tool-button ${annotationTool === tool.key ? "is-active" : ""}`.trim()}
+                              title={tool.title}
+                            >
+                              <i className={tool.icon} style={{ fontSize: "18px" }}></i>
+                            </Button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -975,8 +1180,18 @@ export default function PreviewPage() {
             {/* Errors Section */}
             <Card className="mt-4">
               <Card.Body>
-                <div className="mb-3">
+                <div className="mb-3 d-flex justify-content-between align-items-center">
                   <h5 className="mb-0">Errors</h5>
+                  {allAnnotations.length > 0 && (
+                    <span className="badge" style={{ 
+                      backgroundColor: "#e7f3ff", 
+                      color: "#0d6efd",
+                      fontSize: "0.85rem",
+                      padding: "6px 12px"
+                    }}>
+                      Showing {anomalyErrors.length} of {allAnnotations.length}
+                    </span>
+                  )}
                 </div>
 
                 {loadingErrors ? (
@@ -1030,8 +1245,9 @@ export default function PreviewPage() {
                                 borderRadius: "6px",
                                 fontWeight: "600"
                               }}
+                              title={`Error #${index + 1}`}
                             >
-                              {error.severityLevel} #{index + 1}
+                              {error.severityLevel}
                             </span>
                             <div className="d-flex flex-column">
                               <span style={{ color: "#495057", fontSize: "0.95rem", fontWeight: "500" }}>
@@ -1242,6 +1458,16 @@ export default function PreviewPage() {
         </Offcanvas.Header>
         <Offcanvas.Body>
           <div className="d-flex flex-column h-100">
+            {/* Active Annotations Counter */}
+            <div className="mb-3 p-2" style={{ backgroundColor: "#e7f3ff", borderRadius: "8px", border: "1px solid #b3d9ff" }}>
+              <div className="d-flex align-items-center">
+                <i className="bi bi-info-circle me-2" style={{ color: "#0d6efd" }}></i>
+                <span style={{ fontSize: "0.9rem", color: "#0d6efd" }}>
+                  <strong>{filteredAnnotations.length}</strong> of <strong>{allAnnotations.length}</strong> annotations displayed
+                </span>
+              </div>
+            </div>
+
             {/* Settings Content */}
             <div className="flex-grow-1">
               {/* Temperature Difference */}

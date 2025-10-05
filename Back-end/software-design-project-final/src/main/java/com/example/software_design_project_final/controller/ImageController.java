@@ -1,6 +1,5 @@
 package com.example.software_design_project_final.controller;
 
-import com.example.software_design_project_final.config.FileStorageConfig;
 import com.example.software_design_project_final.dao.Image;
 import com.example.software_design_project_final.dto.ImageRequest;
 import com.example.software_design_project_final.dto.ImageResponse;
@@ -19,8 +18,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.net.MalformedURLException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * REST Controller for Image operations
@@ -28,7 +28,6 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/images")
-@CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:3000"})
 public class ImageController {
 
     @Autowired
@@ -128,6 +127,16 @@ public class ImageController {
         return ResponseEntity.ok(images);
     }
 
+    // Supported image content types
+    private static final Map<String, String> CONTENT_TYPE_MAP = Map.of(
+            "jpg", "image/jpeg",
+            "jpeg", "image/jpeg",
+            "png", "image/png",
+            "gif", "image/gif",
+            "bmp", "image/bmp",
+            "webp", "image/webp"
+    );
+
     /**
      * Download/view image file
      * GET /api/images/download/{fileName}
@@ -135,40 +144,21 @@ public class ImageController {
     @GetMapping("/download/{fileName}")
     public ResponseEntity<Resource> downloadFile(@PathVariable String fileName) {
         try {
-            FileStorageConfig fileStorageConfig = new FileStorageConfig();
-            Path filePath = Paths.get(fileStorageConfig.getUploadDir()).resolve(fileName).normalize();
+            Path filePath = imageService.getFileStorageLocation().resolve(fileName).normalize();
             Resource resource = new UrlResource(filePath.toUri());
 
-            if (resource.exists()) {
-                // Determine content type based on file extension
-                String contentType = "application/octet-stream";
-                String fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
-                switch (fileExtension) {
-                    case "jpg":
-                    case "jpeg":
-                        contentType = "image/jpeg";
-                        break;
-                    case "png":
-                        contentType = "image/png";
-                        break;
-                    case "gif":
-                        contentType = "image/gif";
-                        break;
-                    case "bmp":
-                        contentType = "image/bmp";
-                        break;
-                    case "webp":
-                        contentType = "image/webp";
-                        break;
-                }
-
-                return ResponseEntity.ok()
-                        .contentType(MediaType.parseMediaType(contentType))
-                        .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
-                        .body(resource);
-            } else {
+            if (!resource.exists()) {
                 throw new ResourceNotFoundException("File not found: " + fileName);
             }
+
+            // Determine content type based on file extension
+            String fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+            String contentType = CONTENT_TYPE_MAP.getOrDefault(fileExtension, "application/octet-stream");
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
+                    .body(resource);
         } catch (MalformedURLException ex) {
             throw new FileStorageException("File not found: " + fileName, ex);
         }

@@ -1,76 +1,120 @@
 // src/components/toolbar.jsx
-import { Row, Col, Form, InputGroup, Button } from "react-bootstrap";
+import { Form, InputGroup, Button } from "react-bootstrap";
+
+const DEFAULT_SORT_OPTIONS = [
+  { value: "number", label: "By Transformer No" },
+  { value: "pole", label: "By Pole No" },
+  { value: "region", label: "By Region" },
+  { value: "type", label: "By Type" },
+];
+
+const DEFAULT_RANGE_OPTIONS = [
+  { value: "all", label: "All Time" },
+  { value: "24h", label: "Last 24 hours" },
+  { value: "7d", label: "Last 7 days" },
+  { value: "30d", label: "Last 30 days" },
+  { value: "ytd", label: "Year to date" },
+];
 
 export default function Toolbar({
-  sortBy, setSortBy,
-  query, setQuery,
-  range, setRange,
-  starOnly, setStarOnly,
-  onReset
+  sortBy,
+  setSortBy,
+  query,
+  setQuery,
+  range,
+  setRange,
+  starOnly,
+  setStarOnly,
+  onReset,
+  sortOptions = DEFAULT_SORT_OPTIONS,
+  rangeOptions = DEFAULT_RANGE_OPTIONS,
+  searchPlaceholder = "Search",
+  showFavoritesToggle = true,
 }) {
-  return (
-    <Row className="g-2 align-items-center">
-      {/* Sort by */}
-      <Col xs="12" md="auto">
-        <Form.Select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="pill">
-          <option value="number">By Transformer No</option>
-          <option value="pole">By Pole No</option>
-          <option value="region">By Region</option>
-          <option value="type">By Type</option>
-        </Form.Select>
-      </Col>
+  const resolvedSortOptions = sortOptions.length ? sortOptions : DEFAULT_SORT_OPTIONS;
+  const resolvedRangeOptions = rangeOptions.length ? rangeOptions : DEFAULT_RANGE_OPTIONS;
+  const canToggleFavorites = showFavoritesToggle && typeof setStarOnly === "function";
 
-      {/* Search */}
-      <Col xs={12} md="4" lg="5">
+  return (
+    <div className="ui-toolbar">
+      <div className="ui-toolbar__sort">
+        <Form.Label htmlFor="toolbar-sort" className="visually-hidden">
+          Sort by
+        </Form.Label>
+        <Form.Select
+          id="toolbar-sort"
+          value={sortBy}
+          onChange={(e) => setSortBy?.(e.target.value)}
+          className="pill"
+        >
+          {resolvedSortOptions.map(({ value, label }) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </Form.Select>
+      </div>
+
+      <div className="ui-toolbar__search">
         <InputGroup className="pill">
+          <Form.Label htmlFor="toolbar-search" className="visually-hidden">
+            Search
+          </Form.Label>
           <Form.Control
-            placeholder="Search Transformer"
+            id="toolbar-search"
+            placeholder={searchPlaceholder}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => setQuery?.(e.target.value)}
           />
           <Button
             variant="primary"
-            className="icon-btn"
-            onClick={() => {/* optional: trigger anything; filtering already live */}}
+            className="ui-icon-btn"
+            onClick={() => {}}
+            aria-label="Search"
           >
-            {/* <img src="/img/search.png" alt="search" width={20} height={20} style={{ display: "block", objectFit: "contain" }} /> */}
-            <i className="bi bi-search" />
+            <i className="bi bi-search" aria-hidden="true" />
           </Button>
         </InputGroup>
-      </Col>
+      </div>
 
-      {/* Favorites only */}
-      <Col xs="auto" className="d-none d-md-block">
-        <Button
-          type="button"
-          onClick={() => setStarOnly(v => !v)}
-          aria-pressed={starOnly}
-          title={starOnly ? "Show all" : "Show favorites only"}
-          variant={starOnly ? "warning" : "light"}
-          className="icon-only shadow-sm d-flex align-items-center justify-content-center"
-          style={{ width: 44, height: 44, padding: 0, borderRadius: 12 }}
+      {canToggleFavorites && (
+        <div className="d-none d-md-flex align-items-center">
+          <Button
+            type="button"
+            onClick={() => setStarOnly?.((v) => !v)}
+            aria-pressed={!!starOnly}
+            aria-label={starOnly ? "Show all items" : "Show favorites only"}
+            variant={starOnly ? "warning" : "light"}
+            className="ui-icon-btn shadow-sm"
+          >
+            <i className={starOnly ? "bi bi-star-fill" : "bi bi-star"} aria-hidden="true" />
+          </Button>
+        </div>
+      )}
+
+      <div className="ui-toolbar__range">
+        <Form.Label htmlFor="toolbar-range" className="visually-hidden">
+          Time range
+        </Form.Label>
+        <Form.Select
+          id="toolbar-range"
+          value={range}
+          onChange={(e) => setRange?.(e.target.value)}
+          className="pill"
         >
-          <img src="/img/star.png" alt="favorites" width={20} height={20} style={{ display: "block", objectFit: "contain" }} />
-        </Button>
-      </Col>
-
-      {/* Time range */}
-      <Col xs="12" md="auto">
-        <Form.Select value={range} onChange={(e) => setRange(e.target.value)} className="pill">
-          <option value="all">All Time</option>
-          <option value="24h">Last 24 hours</option>
-          <option value="7d">Last 7 days</option>
-          <option value="30d">Last 30 days</option>
-          <option value="ytd">Year to date</option>
+          {resolvedRangeOptions.map(({ value, label }) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
         </Form.Select>
-      </Col>
+      </div>
 
-      {/* Reset */}
-      <Col xs="auto">
-        <Button variant="link" className="text-primary fw-semibold p-0" onClick={onReset}>
+      <div className="ui-toolbar__reset">
+        <Button variant="link" className="ui-ghost-link" onClick={onReset}>
           Reset Filters
         </Button>
-      </Col>
-    </Row>
+      </div>
+    </div>
   );
 }

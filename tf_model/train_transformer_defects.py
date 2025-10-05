@@ -33,6 +33,9 @@ def setup_environment():
     # Fix OpenMP duplicate library issue
     os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
     
+    # Add memory optimization environment variables
+    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:128'
+    
     try:
         from ultralytics import YOLO
         import torch
@@ -46,13 +49,26 @@ def setup_environment():
     if torch.cuda.is_available():
         gpu_count = torch.cuda.device_count()
         gpu_name = torch.cuda.get_device_name(0)
+        gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)
         print(f"✅ GPU available: {gpu_name}")
         print(f"   GPU count: {gpu_count}")
+        print(f"   GPU memory: {gpu_memory:.2f} GB")
         print(f"   CUDA version: {torch.version.cuda}")
+        
+        # Memory warning for low VRAM
+        if gpu_memory < 6:
+            print(f"⚠️  Low GPU memory detected! Training optimized for memory efficiency:")
+            print(f"   • Batch size: 4 (reduced)")
+            print(f"   • Workers: 2 (reduced)")
+            print(f"   • Mosaic augmentation: disabled")
     else:
         print("⚠️  No GPU available, using CPU (training will be slower)")
     
     print(f"🐍 PyTorch version: {torch.__version__}")
+    print(f"\n💡 Memory Tips:")
+    print(f"   • Close other applications to free up RAM")
+    print(f"   • If training still fails, reduce batch size further")
+    print(f"   • Consider increasing Windows virtual memory (paging file)")
     
     return True
 
@@ -112,10 +128,10 @@ def create_training_config():
         'model': 'yolo11n.pt',  # Start with nano for faster training
         'data': 'Transformer Defects/data.yaml',
         
-        # Training parameters
+        # Training parameters - MEMORY OPTIMIZED
         'epochs': 150,
         'patience': 25,
-        'batch': 16,  # Adjust based on GPU memory
+        'batch': 4,  # Reduced from 16 to 4 for memory constraints
         'imgsz': 640,
         'device': 0,  # Use GPU if available
         
@@ -126,7 +142,8 @@ def create_training_config():
         
         # Optimization
         'amp': True,  # Automatic Mixed Precision
-        'cache': False,  # Set to True if you have enough RAM
+        'cache': False,  # Disabled for memory safety
+        'workers': 2,  # Reduced from 8 to 2 workers to save memory
         'lr0': 0.01,
         'lrf': 0.01,
         'momentum': 0.937,
@@ -140,7 +157,7 @@ def create_training_config():
         'cls': 0.5,      # Classification loss
         'dfl': 1.5,      # DFL loss
         
-        # Data augmentation
+        # Data augmentation - REDUCED FOR MEMORY
         'hsv_h': 0.015,
         'hsv_s': 0.7,
         'hsv_v': 0.4,
@@ -151,7 +168,7 @@ def create_training_config():
         'perspective': 0.0,
         'flipud': 0.0,
         'fliplr': 0.5,
-        'mosaic': 1.0,
+        'mosaic': 0.0,  # DISABLED - mosaic uses 4x memory
         'mixup': 0.0,
         'copy_paste': 0.0,
         

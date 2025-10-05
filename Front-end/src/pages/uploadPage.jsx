@@ -133,8 +133,6 @@ export default function UploadPage() {
       return;
     }
     
-    console.log("Processing image file:", imageFile.name, "Size:", imageFile.size);
-    
     // Keep the original 'file' field for FastAPI, but add 'image' field for Spring Boot
     formData.append('image', imageFile);  // Spring Boot expects 'image'
 
@@ -147,7 +145,6 @@ export default function UploadPage() {
 
     // Get the image type from form data
     const imageType = formData.get('imageType')?.toUpperCase();
-    console.log("Image type:", imageType);
 
     try {
       // Only run anomaly detection for MAINTENANCE images
@@ -467,14 +464,28 @@ export default function UploadPage() {
     }
   };
 
-  // Handle back navigation based on how the page was accessed
+  // Handle back navigation based on available images
   const handleBack = () => {
-    if (inspectionId) {
-      // If we came from inspections, go back to inspections
-      navigate("/inspections");
+    // Check if images are available for this inspection/transformer
+    const hasImages = images.length > 0;
+    
+    if (hasImages) {
+      // If images are available, go to preview page
+      const effectiveTransformerId = transformerId || inspection?.transformerId;
+      navigate("/preview", { 
+        state: { 
+          transformerId: effectiveTransformerId, 
+          inspectionId 
+        } 
+      });
     } else {
-      // If we came from transformers or default, go to transformers
-      navigate("/transformers");
+      // If no images, go to inspections page for this transformer
+      const effectiveTransformerId = transformerId || inspection?.transformerId;
+      navigate("/inspections", { 
+        state: { 
+          transformerId: effectiveTransformerId 
+        } 
+      });
     }
   };
 
@@ -495,7 +506,7 @@ export default function UploadPage() {
         </Container>
       </div>
 
-      <Container style={{ maxWidth: 1100 }}>
+  <Container className="ui-page-container">
         {loading && <Alert variant="info" className="mt-3">Loading transformer data...</Alert>}
         {error && !isUploading && <Alert variant="danger" className="mt-3">{error}</Alert>}
         {showInfoMessage && infoMessage && (
@@ -545,24 +556,21 @@ export default function UploadPage() {
                     <div className="text-muted">Thermal image is being uploaded and reviewed.</div>
                   </div>
 
-                  <div className="mx-auto" style={{ maxWidth: 800 }}>
+                  <div className="mx-auto ui-container-narrow">
                     <div className="position-relative mb-2">
-                      <div className="progress" style={{ height: 10, borderRadius: 999 }}>
+                      <div className="ui-progress">
                         <div
-                          className="progress-bar"
+                          className={`progress-bar ui-progress__bar ${isUploading ? "progress-bar-striped progress-bar-animated" : ""}`}
                           role="progressbar"
                           style={{ width: `${progress}%` }}
                           aria-valuenow={progress}
                           aria-valuemin="0"
                           aria-valuemax="100"
-                        />
+                        ></div>
                       </div>
-                      <div
-                        className="position-absolute"
-                        style={{ top: -22, right: 0, fontWeight: 600, fontSize: 12 }}
-                      >
+                      <span className="text-muted ui-progress__label">
                         {progress}%
-                      </div>
+                      </span>
                     </div>
 
                     <div className="d-flex justify-content-center mt-4">
@@ -597,7 +605,7 @@ export default function UploadPage() {
                     <Card.Header>
                       <h5 className="mb-0">Existing Images ({images.length})</h5>
                     </Card.Header>
-                    <Card.Body style={{ maxHeight: "500px", overflowY: "auto" }}>
+                    <Card.Body className="ui-scroll-panel">
                       {images.length === 0 ? (
                         <p className="text-muted">No images uploaded yet.</p>
                       ) : (
@@ -643,14 +651,13 @@ export default function UploadPage() {
                                   <img
                                     src={getImageUrl(image.filePath)}
                                     alt={image.fileName || "Uploaded image"}
-                                    className="img-fluid"
-                                    style={{ maxHeight: "200px", objectFit: "contain" }}
+                                    className="img-fluid ui-image-fit"
                                     onError={(e) => {
                                       e.target.style.display = "none";
                                       e.target.nextSibling.style.display = "block";
                                     }}
                                   />
-                                  <div style={{ display: "none" }} className="text-muted">
+                                  <div className="text-muted d-none">
                                     Image preview not available
                                   </div>
                                 </div>

@@ -11,7 +11,8 @@ export default function AnnotationEditor({
   imageId, 
   annotations = [], 
   onAnnotationsChange,
-  readOnly = false 
+  readOnly = false,
+  selectedAnnotation = null  // Annotation to highlight (from external selection)
 }) {
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
@@ -74,6 +75,14 @@ export default function AnnotationEditor({
     }
   }, [imageUrl, annotations]);
 
+  // When selectedAnnotation changes, scroll it into view and highlight it
+  useEffect(() => {
+    if (selectedAnnotation && isLoaded) {
+      // Redraw to highlight the selected annotation
+      drawAnnotations();
+    }
+  }, [selectedAnnotation, isLoaded]);
+
   // Draw annotations on canvas
   const drawAnnotations = useCallback(() => {
     if (!canvasRef.current || !imageRef.current || !isLoaded) return;
@@ -93,12 +102,15 @@ export default function AnnotationEditor({
       if (!annotation.isActive) return;
 
       const classInfo = getClassById(annotation.classId);
-      const isSelected = editingAnnotation?.id === annotation.id;
+      // Highlight if either editing OR selected from list
+      const isEditing = editingAnnotation?.id === annotation.id;
+      const isHighlighted = selectedAnnotation?.id === annotation.id;
+      const shouldHighlight = isEditing || isHighlighted;
       
-      // Draw bounding box
-      ctx.strokeStyle = isSelected ? '#00ff00' : classInfo.color;
-      ctx.lineWidth = isSelected ? 3 : 2;
-      ctx.setLineDash(isSelected ? [5, 5] : []);
+      // Draw bounding box with highlight
+      ctx.strokeStyle = shouldHighlight ? '#00ff00' : classInfo.color;
+      ctx.lineWidth = shouldHighlight ? 4 : 2;
+      ctx.setLineDash(shouldHighlight ? [5, 5] : []);
       
       const x = annotation.bboxX1;
       const y = annotation.bboxY1;
@@ -120,8 +132,8 @@ export default function AnnotationEditor({
       ctx.fillStyle = 'white';
       ctx.fillText(label, x + 4, y - 6);
 
-      // Draw resize handles if selected
-      if (isSelected && !readOnly) {
+      // Draw resize handles if being edited (not just highlighted from list)
+      if (isEditing && !readOnly) {
         const handleSize = 8;
         ctx.fillStyle = '#00ff00';
         ctx.fillRect(x - handleSize/2, y - handleSize/2, handleSize, handleSize);
@@ -143,7 +155,7 @@ export default function AnnotationEditor({
         newAnnotation.currentY - newAnnotation.startY
       );
     }
-  }, [annotations, editingAnnotation, newAnnotation, isLoaded, readOnly]);
+  }, [annotations, editingAnnotation, newAnnotation, isLoaded, readOnly, selectedAnnotation]);
 
   // Redraw when annotations change
   useEffect(() => {

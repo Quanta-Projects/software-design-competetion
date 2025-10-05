@@ -12,12 +12,7 @@ export default function ThermalImageUploader({ onUpload, defaultImageType }) {
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
-    if (!file) {
-      console.log("No file selected");
-      return;
-    }
-    
-    console.log("File selected:", file.name, "Type:", file.type, "Size:", file.size);
+    if (!file) return;
     
     // Check file size (10MB limit to match backend)
     const maxSize = 10 * 1024 * 1024; // 10MB in bytes
@@ -50,11 +45,6 @@ export default function ThermalImageUploader({ onUpload, defaultImageType }) {
         fd.append("envCondition", envCondition || "SUNNY");
         fd.append("imageType", imageType || "BASELINE");
         
-        console.log("Calling onUpload with FormData containing:");
-        console.log("- file:", file.name);
-        console.log("- envCondition:", envCondition || "SUNNY");
-        console.log("- imageType:", imageType || "BASELINE");
-        
         await onUpload(fd);
         
         // Reset form after successful upload
@@ -63,15 +53,12 @@ export default function ThermalImageUploader({ onUpload, defaultImageType }) {
           fileRef.current.value = "";
         }
       } catch (error) {
-        console.error("Upload error:", error);
         alert("Upload failed: " + (error.message || String(error)));
         
         // Don't reset form on error so user can retry
       } finally {
         setUploading(false);
       }
-    } else {
-      console.error("onUpload function not provided or not a function");
     }
   };
 

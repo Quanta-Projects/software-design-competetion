@@ -147,8 +147,7 @@ export default function AddTransformerModal({
           <Button
             type="submit"
             disabled={!canSubmit}
-            className="px-4"
-            style={{ borderRadius: 12 }}
+            className="px-4 ui-btn-rounded"
           >
             {isEdit ? "Save" : "Confirm"}
           </Button>

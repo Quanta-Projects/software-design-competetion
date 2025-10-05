@@ -4,6 +4,7 @@ import com.example.software_design_project_final.dto.AnnotationRequest;
 import com.example.software_design_project_final.dto.AnnotationResponse;
 import com.example.software_design_project_final.service.AnnotationService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,9 +16,9 @@ import java.util.Map;
 /**
  * REST Controller for managing thermal image annotations
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/annotations")
-@CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:3000"})
 @RequiredArgsConstructor
 public class AnnotationController {
 
@@ -32,8 +33,10 @@ public class AnnotationController {
             AnnotationResponse response = annotationService.createAnnotation(request);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (IllegalArgumentException e) {
+            log.warn("Invalid annotation request: {}", e.getMessage());
             return ResponseEntity.badRequest().build();
         } catch (Exception e) {
+            log.error("Error creating annotation", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

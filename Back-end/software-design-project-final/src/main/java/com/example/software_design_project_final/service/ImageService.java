@@ -12,6 +12,7 @@ import com.example.software_design_project_final.repository.AnnotationRepository
 import com.example.software_design_project_final.config.FileStorageConfig;
 import com.example.software_design_project_final.exception.ResourceNotFoundException;
 import com.example.software_design_project_final.exception.FileStorageException;
+import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -27,12 +28,13 @@ import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.Arrays;
+import java.util.List;
 
 /**
  * Service class for Image business logic
  * Handles file upload, storage, and image metadata management
  */
+@Slf4j
 @Service
 @Transactional
 public class ImageService {
@@ -205,10 +207,10 @@ public class ImageService {
             var annotations = annotationRepository.findAllAnnotationsByImageId(id);
             if (!annotations.isEmpty()) {
                 annotationRepository.deleteAll(annotations);
-                System.out.println("Deleted " + annotations.size() + " annotations for image ID: " + id);
+                log.info("Deleted {} annotations for image ID: {}", annotations.size(), id);
             }
         } catch (Exception ex) {
-            System.err.println("Error deleting annotations for image " + id + ": " + ex.getMessage());
+            log.error("Error deleting annotations for image {}: {}", id, ex.getMessage());
             // Continue with image deletion even if annotation deletion fails
         }
 
@@ -218,7 +220,7 @@ public class ImageService {
             Files.deleteIfExists(filePath);
         } catch (IOException ex) {
             // Log the error but don't fail the operation
-            System.err.println("Could not delete file: " + image.getFilePath());
+            log.error("Could not delete file: {}", image.getFilePath(), ex);
         }
 
         // Finally, delete the image record
@@ -245,10 +247,16 @@ public class ImageService {
                     fileStorageConfig.getMaxFileSize() + " bytes");
         }
 
-        String fileExtension = getFileExtension(file.getOriginalFilename());
-        if (!Arrays.asList(fileStorageConfig.getAllowedFileTypes()).contains(fileExtension.toLowerCase())) {
-            throw new FileStorageException("File type not allowed. Allowed types: " +
-                    Arrays.toString(fileStorageConfig.getAllowedFileTypes()));
+    String fileExtension = getFileExtension(file.getOriginalFilename());
+    List<String> allowedTypes = fileStorageConfig.getAllowedFileTypes();
+
+    boolean isAllowedType = allowedTypes.stream()
+        .map(String::toLowerCase)
+        .anyMatch(allowed -> allowed.equals(fileExtension.toLowerCase()));
+
+    if (!isAllowedType) {
+        throw new FileStorageException("File type not allowed. Allowed types: " +
+            String.join(", ", allowedTypes));
         }
     }
 

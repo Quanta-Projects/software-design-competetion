@@ -12,6 +12,7 @@ import Pager from "../components/pager";
 import AddInspectionModal from "../components/AddInspectionModal";
 import EditInspectionModal from "../components/EditInspectionModal";
 import { getRestApiUrl } from "../utils/config";
+import { INSPECTION_SORT_OPTIONS, INSPECTION_TIME_RANGE_OPTIONS, SEARCH_PLACEHOLDERS } from "../utils/uiOptions";
 
 export default function InspectionsPage() {
   const location = useLocation();
@@ -301,7 +302,7 @@ export default function InspectionsPage() {
 
   if (loading) {
     return (
-      <Container fluid className="d-flex justify-content-center align-items-center" style={{ height: "50vh" }}>
+      <Container fluid className="ui-loading-panel">
         <Spinner animation="border" variant="primary" />
       </Container>
     );
@@ -325,6 +326,7 @@ export default function InspectionsPage() {
         title={title} 
         buttonText="Add Inspection"
         onBack={handleBack}
+        showToggle={true}
       />
 
       <Toolbar
@@ -337,6 +339,9 @@ export default function InspectionsPage() {
         starOnly={starOnly}
         setStarOnly={setStarOnly}
         onReset={handleResetFilters}
+        sortOptions={INSPECTION_SORT_OPTIONS}
+        rangeOptions={INSPECTION_TIME_RANGE_OPTIONS}
+        searchPlaceholder={SEARCH_PLACEHOLDERS.inspections}
       />
 
       <InspectionTable
