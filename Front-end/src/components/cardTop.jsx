@@ -62,17 +62,18 @@ function CardTop({ onAdd, title = "Transformers", buttonText = "Add Transformer"
         <ToggleButtonGroup
           type="radio"
           name="options"
-          defaultValue={1}
+          value={location.pathname === "/inspections" ? 2 : 1}
           className="ms-auto"
         >
           <ToggleButton
             id="tbg-radio-1"
             value={1}
             style={{
-              backgroundColor: "#0d6efd",
-              color: "white",
+              backgroundColor: location.pathname === "/transformers" ? "#0d6efd" : "white",
+              color: location.pathname === "/transformers" ? "white" : "#0d6efd",
               borderColor: "#0d6efd",
             }}
+            onClick={() => navigate("/transformers")}
           >
             Transformers
           </ToggleButton>
@@ -80,10 +81,11 @@ function CardTop({ onAdd, title = "Transformers", buttonText = "Add Transformer"
             id="tbg-radio-2"
             value={2}
             style={{
-              color: "#0d6efd",
+              backgroundColor: location.pathname === "/inspections" ? "#0d6efd" : "white",
+              color: location.pathname === "/inspections" ? "white" : "#0d6efd",
               borderColor: "#0d6efd",
-              backgroundColor: "white",
             }}
+            onClick={() => navigate("/inspections")}
           >
             Inspections
           </ToggleButton>

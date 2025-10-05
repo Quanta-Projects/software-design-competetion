@@ -87,7 +87,7 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav,
     
                   <button
                     type="button"
-                    className="btn btn-info d-inline-flex align-items-center justify-content-center px-3"
+                    className="btn btn-success d-inline-flex align-items-center justify-content-center px-3"
                     style={{ height: 25 }}
                     onClick={() => handleViewInspectionsClick(t.id)}
                     title="View Inspections"

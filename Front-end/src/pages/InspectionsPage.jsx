@@ -325,6 +325,7 @@ export default function InspectionsPage() {
         title={title} 
         buttonText="Add Inspection"
         onBack={handleBack}
+        showToggle={true}
       />
 
       <Toolbar

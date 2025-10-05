@@ -464,14 +464,28 @@ export default function UploadPage() {
     }
   };
 
-  // Handle back navigation based on how the page was accessed
+  // Handle back navigation based on available images
   const handleBack = () => {
-    if (inspectionId) {
-      // If we came from inspections, go back to inspections
-      navigate("/inspections");
+    // Check if images are available for this inspection/transformer
+    const hasImages = images.length > 0;
+    
+    if (hasImages) {
+      // If images are available, go to preview page
+      const effectiveTransformerId = transformerId || inspection?.transformerId;
+      navigate("/preview", { 
+        state: { 
+          transformerId: effectiveTransformerId, 
+          inspectionId 
+        } 
+      });
     } else {
-      // If we came from transformers or default, go to transformers
-      navigate("/transformers");
+      // If no images, go to inspections page for this transformer
+      const effectiveTransformerId = transformerId || inspection?.transformerId;
+      navigate("/inspections", { 
+        state: { 
+          transformerId: effectiveTransformerId 
+        } 
+      });
     }
   };
 
