@@ -323,9 +323,10 @@ names:
 # -----------------------------
 
 def main():
-    # Dataset paths
-    dataset_dir = "D:/ACCA Sem 7/Software Design Competetion/quanta-project/Fork/software-design-competetion-forked/ai-anomaly-service/dataset/Sample_Thermal_Images"
-    output_base_dir = "D:/ACCA Sem 7/Software Design Competetion/quanta-project/Fork/software-design-competetion-forked/ai-anomaly-service/yolo_dataset"
+    # Dataset paths - using relative paths that work from current directory
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    dataset_dir = os.path.join(script_dir, "dataset", "Sample_Thermal_Images")
+    output_base_dir = os.path.join(script_dir, "yolo_dataset")
     
     # Create YOLO dataset structure
     ensure_dir(output_base_dir)

@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 6
+names: ['Full Wire Overload PF', 'Loose Joint F', 'Loose Joint PF', 'Point Overload F', 'Point Overload PF', 'Transformer Overload']
+
+roboflow:
+  workspace: transformerfaults-wwfnr
+  project: transformer-defects-qtymf
+  version: 2
+  license: Private
+  url: https://app.roboflow.com/transformerfaults-wwfnr/transformer-defects-qtymf/2
