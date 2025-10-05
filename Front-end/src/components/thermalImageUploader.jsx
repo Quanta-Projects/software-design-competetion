@@ -12,12 +12,20 @@ export default function ThermalImageUploader({ onUpload, defaultImageType }) {
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      console.log("No file selected");
+      return;
+    }
+    
+    console.log("File selected:", file.name, "Type:", file.type, "Size:", file.size);
     
     // Check file size (10MB limit to match backend)
     const maxSize = 10 * 1024 * 1024; // 10MB in bytes
     if (file.size > maxSize) {
       alert(`File size too large. Maximum allowed size is 10MB. Your file is ${Math.round(file.size / (1024 * 1024))}MB.`);
+      if (fileRef.current) {
+        fileRef.current.value = "";
+      }
       return;
     }
     
@@ -25,27 +33,45 @@ export default function ThermalImageUploader({ onUpload, defaultImageType }) {
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
       alert('Invalid file type. Please select an image file (JPEG, PNG, GIF, BMP, WEBP).');
+      if (fileRef.current) {
+        fileRef.current.value = "";
+      }
       return;
     }
     
     setFileName(file.name);
 
     // If you want to actually upload here:
-    if (onUpload) {
+    if (onUpload && typeof onUpload === 'function') {
       try {
         setUploading(true);
         const fd = new FormData();
         fd.append("file", file);
-        fd.append("envCondition", envCondition);
-        fd.append("imageType", imageType);
+        fd.append("envCondition", envCondition || "SUNNY");
+        fd.append("imageType", imageType || "BASELINE");
+        
+        console.log("Calling onUpload with FormData containing:");
+        console.log("- file:", file.name);
+        console.log("- envCondition:", envCondition || "SUNNY");
+        console.log("- imageType:", imageType || "BASELINE");
+        
         await onUpload(fd);
-        setFileName(""); // Reset after successful upload
-        fileRef.current.value = ""; // Reset file input
+        
+        // Reset form after successful upload
+        setFileName("");
+        if (fileRef.current) {
+          fileRef.current.value = "";
+        }
       } catch (error) {
-        alert("Upload failed: " + error.message);
+        console.error("Upload error:", error);
+        alert("Upload failed: " + (error.message || String(error)));
+        
+        // Don't reset form on error so user can retry
       } finally {
         setUploading(false);
       }
+    } else {
+      console.error("onUpload function not provided or not a function");
     }
   };
 

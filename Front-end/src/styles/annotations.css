@@ -1,0 +1,133 @@
+/* Annotation Editor Styles */
+
+.annotation-editor {
+  position: relative;
+}
+
+.annotation-editor canvas {
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  cursor: crosshair;
+}
+
+.annotation-editor canvas:hover {
+  border-color: #0066cc;
+}
+
+.annotation-color-indicator {
+  flex-shrink: 0;
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  margin-right: 8px;
+}
+
+.annotation-card {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.annotation-card:hover {
+  background-color: #f8f9fa !important;
+  border-color: #0066cc !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Image Viewer Styles */
+
+.nav-tabs .nav-link {
+  color: #495057;
+  border: 1px solid transparent;
+  border-bottom-color: #dee2e6;
+}
+
+.nav-tabs .nav-link:hover {
+  border-color: #e9ecef #e9ecef #dee2e6;
+  color: #0066cc;
+}
+
+.nav-tabs .nav-link.active {
+  color: #0066cc;
+  background-color: #fff;
+  border-color: #0066cc #0066cc #fff;
+}
+
+.card-header {
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+  font-weight: 500;
+}
+
+/* Annotation statistics badges */
+.badge {
+  font-size: 0.875em;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .annotation-editor canvas {
+    max-width: 100%;
+    height: auto;
+  }
+  
+  .card-body {
+    padding: 1rem 0.75rem;
+  }
+}
+
+/* Loading states */
+.spinner-border-sm {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Modal styles */
+.modal-header {
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.modal-footer {
+  background-color: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+}
+
+/* Form controls in modals */
+.modal .form-range {
+  margin: 0.5rem 0;
+}
+
+.modal .form-select,
+.modal .form-control {
+  border: 1px solid #ced4da;
+}
+
+.modal .form-select:focus,
+.modal .form-control:focus {
+  border-color: #0066cc;
+  box-shadow: 0 0 0 0.2rem rgba(0, 102, 204, 0.25);
+}
+
+/* Alert styles */
+.alert {
+  border: none;
+  border-radius: 4px;
+}
+
+/* Button variations */
+.btn-outline-primary:hover {
+  background-color: #0066cc;
+  border-color: #0066cc;
+}
+
+.btn-outline-success:hover {
+  background-color: #28a745;
+  border-color: #28a745;
+}
+
+.btn-outline-danger:hover {
+  background-color: #dc3545;
+  border-color: #dc3545;
+}

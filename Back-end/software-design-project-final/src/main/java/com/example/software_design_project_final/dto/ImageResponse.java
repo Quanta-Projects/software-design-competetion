@@ -26,4 +26,5 @@ public class ImageResponse {
     private LocalDateTime uploadDate;
     private Integer transformerId;
     private String transformerNo;
+    private Integer inspectionId;
 }

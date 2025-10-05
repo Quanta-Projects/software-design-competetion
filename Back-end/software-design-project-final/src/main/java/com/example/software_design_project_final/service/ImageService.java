@@ -8,6 +8,7 @@ import com.example.software_design_project_final.dto.ImageResponse;
 import com.example.software_design_project_final.repository.ImageRepository;
 import com.example.software_design_project_final.repository.TransformerRepository;
 import com.example.software_design_project_final.repository.InspectionRepository;
+import com.example.software_design_project_final.repository.AnnotationRepository;
 import com.example.software_design_project_final.config.FileStorageConfig;
 import com.example.software_design_project_final.exception.ResourceNotFoundException;
 import com.example.software_design_project_final.exception.FileStorageException;
@@ -44,6 +45,9 @@ public class ImageService {
 
     @Autowired
     private InspectionRepository inspectionRepository;
+
+    @Autowired
+    private AnnotationRepository annotationRepository;
 
     @Autowired
     private ModelMapper mapper;
@@ -140,6 +144,16 @@ public class ImageService {
     }
 
     /**
+     * Get image by ID
+     */
+    @Transactional(readOnly = true)
+    public ImageResponse getImageById(Integer id) {
+        Image image = imageRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Image not found with id: " + id));
+        return convertToResponse(image);
+    }
+
+    /**
      * Get images by transformer ID
      */
     @Transactional(readOnly = true)
@@ -186,6 +200,18 @@ public class ImageService {
         Image image = imageRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Image not found with id: " + id));
 
+        // First, delete all annotations associated with this image
+        try {
+            var annotations = annotationRepository.findAllAnnotationsByImageId(id);
+            if (!annotations.isEmpty()) {
+                annotationRepository.deleteAll(annotations);
+                System.out.println("Deleted " + annotations.size() + " annotations for image ID: " + id);
+            }
+        } catch (Exception ex) {
+            System.err.println("Error deleting annotations for image " + id + ": " + ex.getMessage());
+            // Continue with image deletion even if annotation deletion fails
+        }
+
         // Delete file from storage
         try {
             Path filePath = this.fileStorageLocation.resolve(image.getFilePath());
@@ -195,6 +221,7 @@ public class ImageService {
             System.err.println("Could not delete file: " + image.getFilePath());
         }
 
+        // Finally, delete the image record
         imageRepository.delete(image);
     }
 
@@ -242,6 +269,12 @@ public class ImageService {
         ImageResponse response = mapper.map(image, ImageResponse.class);
         response.setTransformerId(image.getTransformer().getId());
         response.setTransformerNo(image.getTransformer().getTransformerNo());
+        
+        // Set inspectionId if inspection exists
+        if (image.getInspection() != null) {
+            response.setInspectionId(image.getInspection().getId());
+        }
+        
         return response;
     }
 }

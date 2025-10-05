@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, Row, Col, Button, Dropdown, Stack, Badge } from "react-bootstrap";
-import { getApiUrl } from "../utils/config";
+import { getRestApiUrl } from "../utils/config";
 
 export default function InspectionHeader({
   // Props from parent component (uploadPage.jsx)
@@ -31,7 +31,7 @@ export default function InspectionHeader({
     const newName = prompt("Enter new transformer number:", transformerNo);
     if (newName && newName.trim() && newName !== transformerNo) {
       try {
-        const response = await fetch(getApiUrl(`transformers/${id}`), {
+        const response = await fetch(getRestApiUrl(`transformers/${id}`), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -63,7 +63,7 @@ export default function InspectionHeader({
   const handleDelete = async () => {
     if (window.confirm(`Are you sure you want to delete transformer ${transformerNo}? This action cannot be undone.`)) {
       try {
-        const response = await fetch(getApiUrl(`transformers/${id}`), {
+        const response = await fetch(getRestApiUrl(`transformers/${id}`), {
           method: 'DELETE',
         });
 
