@@ -1,0 +1,132 @@
+/* Front-end/src/components/toolbar.css */
+
+.ui-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background-color: #fff;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+/* ===========================
+    Dropdowns
+    =========================== */
+.ui-toolbar__sort select,
+.ui-toolbar__range select {
+  border-radius: 50px;
+  padding: 0.45rem 2rem 0.45rem 1rem; /* Extra right padding for arrow */
+  border: 1px solid #e2e8f0;
+  background-color: #fff;
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 12px;
+  outline: none;
+  box-shadow: none;
+}
+
+.ui-toolbar__sort select:focus,
+.ui-toolbar__range select:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+/* ===========================
+    Search box
+    =========================== */
+.ui-toolbar__search {
+  flex: 1;
+  min-width: 280px;
+}
+
+.ui-toolbar__search .input-group {
+  border: 1px solid #e2e8f0;
+  border-radius: 50px;
+  overflow: hidden; /* removes double-border look */
+  height: 42px; /* Set a fixed height for the input group - KEEP */
+}
+
+.ui-toolbar__search input {
+  border: none !important;
+  box-shadow: none !important;
+  padding-left: 1rem;
+  height: 100%; /* Make the input fill the height of its parent - KEEP */
+}
+
+.ui-toolbar__search input:focus {
+  outline: none;
+  box-shadow: none !important;
+}
+
+/* --- UPDATED STYLES FOR NEUTRAL SEARCH BUTTON BELOW --- */
+.ui-toolbar__search .btn {
+  /* Remove the border and blue background */
+  border: none !important;
+  background-color: transparent !important; /* Make background clear/white */
+  
+  /* Remove the custom border radius and let the input-group handle it */
+  border-radius: 0 !important; 
+  
+  /* Set icon color to black */
+  color: #000 !important; 
+  
+  /* Ensure it fills the height and centers the icon */
+  height: 100%; 
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  display: flex; 
+  align-items: center; 
+  justify-content: center;
+}
+
+
+/* ===========================
+    Favorites (Star button)
+    =========================== */
+.ui-toolbar__favorites .ui-icon-btn {
+  border-radius: 50%;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e2e8f0;
+  background-color: #fff;
+}
+
+.ui-toolbar__favorites .ui-icon-btn:hover {
+  background-color: #f9fafb;
+}
+
+/* ===========================
+    Reset button
+    =========================== */
+.ui-toolbar__reset button {
+  font-weight: 500;
+  color: #3b82f6;
+  text-decoration: none;
+  padding-right: 0;
+}
+
+.ui-toolbar__reset button:hover {
+  text-decoration: underline;
+}
+
+/* ===========================
+    Responsive
+    =========================== */
+@media (max-width: 768px) {
+  .ui-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ui-toolbar__search {
+    width: 100%;
+  }
+}

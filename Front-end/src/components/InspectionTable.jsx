@@ -1,4 +1,6 @@
-import { useNavigate } from "react-router-dom";
+//src/components/InspectionTable.jsx
+
+// import { useNavigate } from "react-router-dom";
 import React from "react";
 import { Table, Dropdown, Badge, Button } from "react-bootstrap";
 
@@ -8,7 +10,10 @@ const KebabToggle = React.forwardRef(({ onClick }, ref) => (
     type="button"
     className="kebab-toggle"
     aria-label="Row actions"
-    onClick={(e) => { e.preventDefault(); onClick?.(e); }}
+    onClick={(e) => {
+      e.preventDefault();
+      onClick?.(e);
+    }}
   >
     {/* vertical ellipsis (no icon lib needed) */}
     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
@@ -27,7 +32,7 @@ const formatDate = (dateString) => {
     return date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
-      year: "numeric"
+      year: "numeric",
     });
   } catch {
     return "—";
@@ -54,30 +59,42 @@ const getStatusVariant = (status) => {
 // Helper function to format status display
 const formatStatus = (status) => {
   if (!status) return "Unknown";
-  return status.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+  return status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 };
 
-export default function InspectionTable({ 
-  inspections = [], 
-  favs, 
-  onToggleFav, 
+export default function InspectionTable({
+  inspections = [],
+  favs,
+  onToggleFav,
   onView,
   onEdit,
-  onDelete
+  onDelete,
 }) {
   // Show empty state if no inspections
   if (!inspections || inspections.length === 0) {
     return (
       <div className="text-center py-5">
         <div className="mb-3">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" className="text-muted">
-            <path d="M9 11H15M9 15H15M9 7H15M6 3H18C19.1046 3 20 3.89543 20 5V19C20 20.1046 19.1046 21 18 21H6C4.89543 21 4 20.1046 4 19V5C4 3.89543 4.89543 3 6 3Z" 
-                  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <svg
+            width="64"
+            height="64"
+            viewBox="0 0 24 24"
+            fill="none"
+            className="text-muted"
+          >
+            <path
+              d="M9 11H15M9 15H15M9 7H15M6 3H18C19.1046 3 20 3.89543 20 5V19C20 20.1046 19.1046 21 18 21H6C4.89543 21 4 20.1046 4 19V5C4 3.89543 4.89543 3 6 3Z"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </div>
         <h5 className="text-muted">No Inspections Found</h5>
         <p className="text-muted mb-0">
-          No inspections have been created yet. Click "Add Inspection" to create your first inspection.
+          No inspections have been created yet. Click "Add Inspection" to
+          create your first inspection.
         </p>
       </div>
     );
@@ -87,7 +104,11 @@ export default function InspectionTable({
     <Table striped bordered hover className="align-middle">
       <thead>
         <tr>
-          <th className="text-center" style={{ width: 60 }} aria-label="Favourite" />
+          <th
+            className="text-center"
+            style={{ width: 60 }}
+            aria-label="Favourite"
+          />
           <th>Inspection No.</th>
           <th>Inspected Date</th>
           <th>Maintenance Date</th>
@@ -102,24 +123,47 @@ export default function InspectionTable({
           const isFav = favs?.has(insp.inspectionNo);
           return (
             <tr key={insp.id}>
+              {/* Favourite Star */}
               <td className="text-center align-middle">
-                <Button
-                  type="button"
-                  onClick={() => onToggleFav?.(insp.inspectionNo)}
-                  aria-pressed={!!isFav}
-                  aria-label={isFav ? "Unmark favourite" : "Mark as favourite"}
-                  variant={isFav ? "warning" : "light"}
-                  className={`ui-icon-btn ui-icon-btn--sm shadow-sm ${isFav ? "text-dark" : ""}`.trim()}
-                >
-                  <i className={isFav ? "bi bi-star-fill" : "bi bi-star"} aria-hidden="true" />
-                </Button>
+                <div className="d-flex align-items-center justify-content-center">
+                  <Button
+                    type="button"
+                    onClick={() => onToggleFav?.(insp.inspectionNo)}
+                    aria-pressed={!!isFav}
+                    aria-label={
+                      isFav ? "Unmark favourite" : "Mark as favourite"
+                    }
+                    variant={isFav ? "warning" : "light"}
+                    className={`ui-icon-btn ui-icon-btn--sm shadow-sm ${
+                      isFav ? "text-dark" : ""
+                    }`.trim()}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "32px",
+                      height: "32px",
+                      borderRadius: "8px",
+                      padding: 0,
+                    }}
+                  >
+                    <i
+                      className={isFav ? "bi bi-star-fill" : "bi bi-star"}
+                      aria-hidden="true"
+                      style={{ fontSize: "1.1rem" }}
+                    />
+                  </Button>
+                </div>
               </td>
 
+              {/* Data Columns */}
               <td>
                 <div>
                   <strong>{insp.inspectionNo}</strong>
                   {insp.transformerNo && (
-                    <div className="text-muted small">Transformer: {insp.transformerNo}</div>
+                    <div className="text-muted small">
+                      Transformer: {insp.transformerNo}
+                    </div>
                   )}
                 </div>
               </td>
@@ -131,21 +175,28 @@ export default function InspectionTable({
                 </Badge>
               </td>
               <td>{insp.branch || "—"}</td>
-              
-              {/* Last column: View + 3-dots actions */}
-              <td className="text-end">
+
+              {/* Actions Column */}
+              <td className="text-end align-middle">
                 <div className="d-inline-flex align-items-center gap-2">
                   <Button
                     type="button"
-                    className="ui-btn-compact"
-                    variant="primary"
+                    className="ui-btn-compact d-flex align-items-center justify-content-center"
+                    variant="primary" // 🔵 Blue button like TransformerTable
                     onClick={() => onView?.(insp.id)}
+                    title="View Details"
+                    style={{
+                      minHeight: "36px",
+                      lineHeight: "1.2",
+                      padding: "0.4rem 0.9rem",
+                    }}
                   >
                     View
                   </Button>
 
                   <Dropdown align="end">
-                    <Dropdown.Toggle as={KebabToggle}
+                    <Dropdown.Toggle
+                      as={KebabToggle}
                       variant="light"
                       className="d-inline-flex align-items-center justify-content-center p-0"
                       aria-label="Row actions"
@@ -153,7 +204,7 @@ export default function InspectionTable({
                       <i className="bi bi-three-dots-vertical" />
                     </Dropdown.Toggle>
 
-                    <Dropdown.Menu className="kebab-menu">
+                    <Dropdown.Menu className="kebab-menu shadow-sm">
                       <Dropdown.Item onClick={() => onEdit?.(insp)}>
                         Edit
                       </Dropdown.Item>

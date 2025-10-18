@@ -40,3 +40,5 @@ build/
 # !.env.example
 
 uploads/images/
+
+src\main\resources\application.properties
