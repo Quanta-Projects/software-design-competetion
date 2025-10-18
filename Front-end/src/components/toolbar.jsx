@@ -1,5 +1,7 @@
-// src/components/toolbar.jsx
+// Front-end/src/components/toolbar.jsx
+
 import { Form, InputGroup, Button } from "react-bootstrap";
+import "./toolbar.css";
 
 const DEFAULT_SORT_OPTIONS = [
   { value: "number", label: "By Transformer No" },
@@ -28,7 +30,7 @@ export default function Toolbar({
   onReset,
   sortOptions = DEFAULT_SORT_OPTIONS,
   rangeOptions = DEFAULT_RANGE_OPTIONS,
-  searchPlaceholder = "Search",
+  searchPlaceholder = "Search transformer",
   showFavoritesToggle = true,
 }) {
   const resolvedSortOptions = sortOptions.length ? sortOptions : DEFAULT_SORT_OPTIONS;
@@ -36,7 +38,8 @@ export default function Toolbar({
   const canToggleFavorites = showFavoritesToggle && typeof setStarOnly === "function";
 
   return (
-    <div className="ui-toolbar">
+    <div className="ui-toolbar shadow-sm">
+      {/* Sort dropdown */}
       <div className="ui-toolbar__sort">
         <Form.Label htmlFor="toolbar-sort" className="visually-hidden">
           Sort by
@@ -55,6 +58,7 @@ export default function Toolbar({
         </Form.Select>
       </div>
 
+      {/* Search box */}
       <div className="ui-toolbar__search">
         <InputGroup className="pill">
           <Form.Label htmlFor="toolbar-search" className="visually-hidden">
@@ -69,7 +73,6 @@ export default function Toolbar({
           <Button
             variant="primary"
             className="ui-icon-btn"
-            onClick={() => {}}
             aria-label="Search"
           >
             <i className="bi bi-search" aria-hidden="true" />
@@ -77,8 +80,9 @@ export default function Toolbar({
         </InputGroup>
       </div>
 
+      {/* Favorites toggle */}
       {canToggleFavorites && (
-        <div className="d-none d-md-flex align-items-center">
+        <div className="ui-toolbar__favorites">
           <Button
             type="button"
             onClick={() => setStarOnly?.((v) => !v)}
@@ -92,6 +96,7 @@ export default function Toolbar({
         </div>
       )}
 
+      {/* Time range dropdown */}
       <div className="ui-toolbar__range">
         <Form.Label htmlFor="toolbar-range" className="visually-hidden">
           Time range
@@ -110,6 +115,7 @@ export default function Toolbar({
         </Form.Select>
       </div>
 
+      {/* Reset button */}
       <div className="ui-toolbar__reset">
         <Button variant="link" className="ui-ghost-link" onClick={onReset}>
           Reset Filters

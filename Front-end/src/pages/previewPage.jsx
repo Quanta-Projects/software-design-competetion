@@ -1,3 +1,5 @@
+//src/pages/previewPage.jsx
+
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Container, Button, Offcanvas, Alert, Card, Form } from "react-bootstrap";
@@ -757,7 +759,7 @@ export default function PreviewPage() {
       setContainerHeight(DEFAULT_PREVIEW_HEIGHT);
     };
     img.src = imgUrl;
-  }, [images, uploadedImage, resolveImageUrl, findLatestByType, findBestMaintenanceImage, getUploadedAt]);
+  }, [images, uploadedImage]); // <-- reduced deps to avoid stale/multiple-function warnings
 
   const comparisonSources = (() => {
     if (!images.length) return { baseline: null, current: null };
@@ -775,13 +777,12 @@ export default function PreviewPage() {
     return { baseline: findLatestByType("BASELINE"), current: findBestMaintenanceImage() };
   })();
 
-  // Set initial weather condition from maintenance image
   useEffect(() => {
-    const maintenanceImg = comparisonSources.current;
-    if (maintenanceImg && maintenanceImg.envCondition) {
-      setWeatherCondition(maintenanceImg.envCondition.toUpperCase());
-    }
-  }, [comparisonSources.current]);
+      const maintenanceImg = comparisonSources.current;
+      if (maintenanceImg && maintenanceImg.envCondition) {
+        setWeatherCondition(maintenanceImg.envCondition.toUpperCase());
+      }
+    }, [comparisonSources.current?.envCondition]); // <-- track the envCondition value only
 
   // Helper function to determine severity level
   const getSeverityLevel = (className) => {
@@ -1124,52 +1125,84 @@ export default function PreviewPage() {
                     </Form.Select>
                   </div>
 
-                  {/* Right Side: Add Maintenance Button and Annotation Tools */}
-                  <div className="preview-actions-group">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => navigate("/upload", {
-                        state: {
-                          transformerId,
-                          inspectionId,
-                          defaultImageType: "MAINTENANCE"
+                  {/* Right Side: Action Buttons + Tools */}
+                  <div className="preview-actions-group d-flex align-items-right gap-3 flex-wrap">
+                    {/* Buttons Row: Edit Annotations + Add Maintenance */}
+                    <div className="d-flex align-items-center gap-2">
+                      {/* ✅ Edit Annotations button navigates to /image-viewer/{imageId} */}
+                      <Button
+                        variant="outline-secondary"
+                        size="sm"
+                        disabled={!comparisonSources.current?.id}
+                        onClick={() => {
+                          const currentId = comparisonSources.current?.id;
+                          if (currentId) {
+                            navigate(`/image-viewer/${currentId}`, {
+                              state: {
+                                transformerId,
+                                inspectionId,
+                                imageId: currentId,
+                                imageUrl: resolveImageUrl(comparisonSources.current),
+                                fromPreview: true,
+                              },
+                            });
+                          } else {
+                            alert("No image available to edit annotations.");
+                          }
+                        }}
+                        className="preview-action-button btn align-items-center"
+                        title="Edit annotations for the current image"
+                      >
+                        <i className="bi bi-pencil-square me-1"></i>
+                        <span>Edit Annotations</span>
+                      </Button>
+
+                      {/* Add Maintenance button */}
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() =>
+                          navigate("/upload", {
+                            state: {
+                              transformerId,
+                              inspectionId,
+                              defaultImageType: "MAINTENANCE",
+                            },
+                          })
                         }
-                      })}
-                      className="preview-action-button btn btn-primary align-items-center"
-                      title="Add a new maintenance image"
-                    >
-                      <i className="bi bi-plus-circle"></i>
-                      <span>Add Maintenance</span>
-                    </Button>
+                        className="preview-action-button btn btn-primary align-items-center"
+                        title="Add a new maintenance image"
+                      >
+                        <i className="bi bi-plus-circle me-1"></i>
+                        <span>Add Maintenance</span>
+                      </Button>
+                    </div>
 
                     {/* Annotation Tools */}
-                    <div className="preview-annotation-toolbar">
-                      <div className="preview-tool-row">
-                        <div className="fw-semibold fs-6">Annotation Tools</div>
-                        <div className="preview-tool-buttons">
+                    <div className="preview-annotation-toolbar d-flex align-items-center gap-2">
+                      <div className="fw-semibold fs-6 me-2">Annotation Tools</div>
+                      <div className="d-flex align-items-center gap-2">
+                        <Button
+                          variant="light"
+                          size="sm"
+                          onClick={handleResetView}
+                          className="preview-tool-button"
+                          title="Reset View"
+                        >
+                          <i className="bi bi-arrow-clockwise" style={{ fontSize: "18px" }}></i>
+                        </Button>
+                        {annotationToolsConfig.map(tool => (
                           <Button
+                            key={tool.key}
                             variant="light"
                             size="sm"
-                            onClick={handleResetView}
-                            className="preview-tool-button"
-                            title="Reset View"
+                            onClick={tool.handler}
+                            className={`preview-tool-button ${annotationTool === tool.key ? "is-active" : ""}`.trim()}
+                            title={tool.title}
                           >
-                            <i className="bi bi-arrow-clockwise" style={{ fontSize: "18px" }}></i>
+                            <i className={tool.icon} style={{ fontSize: "18px" }}></i>
                           </Button>
-                          {annotationToolsConfig.map(tool => (
-                            <Button
-                              key={tool.key}
-                              variant="light"
-                              size="sm"
-                              onClick={tool.handler}
-                              className={`preview-tool-button ${annotationTool === tool.key ? "is-active" : ""}`.trim()}
-                              title={tool.title}
-                            >
-                              <i className={tool.icon} style={{ fontSize: "18px" }}></i>
-                            </Button>
-                          ))}
-                        </div>
+                        ))}
                       </div>
                     </div>
                   </div>

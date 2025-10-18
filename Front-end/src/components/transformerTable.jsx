@@ -1,10 +1,7 @@
-
-// src/components/transformerTable.jsx
 import { useNavigate } from "react-router-dom";
 import React from "react";
 import { Table, Dropdown, Button } from "react-bootstrap";
-// If you use the icon below, make sure bootstrap-icons is loaded once in your app entry:
-// import "bootstrap-icons/font/bootstrap-icons.css";
+// import "bootstrap-icons/font/bootstrap-icons.css"; // Uncomment if you use Bootstrap icons
 
 const KebabToggle = React.forwardRef(({ onClick }, ref) => (
   <button
@@ -12,7 +9,10 @@ const KebabToggle = React.forwardRef(({ onClick }, ref) => (
     type="button"
     className="kebab-toggle"
     aria-label="Row actions"
-    onClick={(e) => { e.preventDefault(); onClick?.(e); }}
+    onClick={(e) => {
+      e.preventDefault();
+      onClick?.(e);
+    }}
   >
     {/* vertical ellipsis (no icon lib needed) */}
     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
@@ -26,36 +26,37 @@ const KebabToggle = React.forwardRef(({ onClick }, ref) => (
 // Helper function to format enum values for display
 const formatDisplayValue = (value) => {
   if (!value) return "";
-  // Convert NUGEGODA -> Nugegoda, BULK -> Bulk, etc.
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
 };
 
-
-export default function TransformerTable({ transformers = [], favs, onToggleFav, onEdit,          // <-- new (optional)
-  onDelete,        // <-- new (optional)
+export default function TransformerTable({
+  transformers = [],
+  favs,
+  onToggleFav,
+  onEdit,
+  onDelete,
 }) {
-
   const navigate = useNavigate();
-
-  // send the transformer id to /upload
-  const handleViewClick = (transformerId) => {
-    navigate("/upload", { state: { transformerId } });
-  };
 
   // send the transformer id to /inspections
   const handleViewInspectionsClick = (transformerId) => {
     navigate("/inspections", { state: { transformerId } });
   };
+
   return (
     <Table striped bordered hover className="align-middle">
       <thead>
         <tr>
-          <th className="text-center" style={{ width: 60 }} aria-label="Favourite" />
+          <th
+            className="text-center"
+            style={{ width: 60 }}
+            aria-label="Favourite"
+          />
           <th>Transformer No.</th>
-          <th>Pole NO.</th>
+          <th>Pole No.</th>
           <th>Region</th>
           <th>Type</th>
-          <th style={{ width: 120 }} className="text-end"></th>
+          <th style={{ width: 160 }} className="text-end"></th>
         </tr>
       </thead>
 
@@ -64,48 +65,74 @@ export default function TransformerTable({ transformers = [], favs, onToggleFav,
           const isFav = favs?.has(t.no);
           return (
             <tr key={t.id ?? t.no}>
+              {/* Favourite column */}
               <td className="text-center align-middle">
-                <Button
-                  type="button"
-                  onClick={() => onToggleFav?.(t.no)}
-                  aria-pressed={!!isFav}
-                  aria-label={isFav ? "Unmark favourite" : "Mark as favourite"}
-                  variant={isFav ? "warning" : "light"}
-                  className={`ui-icon-btn ui-icon-btn--sm shadow-sm ${isFav ? "text-dark" : ""}`.trim()}
-                >
-                  <i className={isFav ? "bi bi-star-fill" : "bi bi-star"} aria-hidden="true" />
-                </Button>
+                <div className="d-flex align-items-center justify-content-center">
+                  <Button
+                    type="button"
+                    onClick={() => onToggleFav?.(t.no)}
+                    aria-pressed={!!isFav}
+                    aria-label={
+                      isFav ? "Unmark favourite" : "Mark as favourite"
+                    }
+                    variant={isFav ? "warning" : "light"}
+                    className={`ui-icon-btn ui-icon-btn--sm shadow-sm ${
+                      isFav ? "text-dark" : ""
+                    }`.trim()}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "32px",
+                      height: "32px",
+                      borderRadius: "8px",
+                      padding: 0,
+                    }}
+                  >
+                    <i
+                      className={isFav ? "bi bi-star-fill" : "bi bi-star"}
+                      aria-hidden="true"
+                      style={{ fontSize: "1.1rem" }}
+                    />
+                  </Button>
+                </div>
               </td>
 
+              {/* Transformer data */}
               <td>{t.no}</td>
               <td>{t.pole}</td>
               <td>{formatDisplayValue(t.region)}</td>
               <td>{formatDisplayValue(t.type)}</td>
-              {/* Last column: View + View Inspections + 3-dots actions */}
-              <td className="text-end">
+
+              {/* Actions column */}
+              <td className="text-end align-middle">
                 <div className="d-inline-flex align-items-center gap-2">
-    
                   <Button
                     type="button"
-                    className="ui-btn-compact"
-                    variant="success"
+                    className="ui-btn-compact d-flex align-items-center justify-content-center"
+                    variant="primary"
                     onClick={() => handleViewInspectionsClick(t.id)}
                     title="View Inspections"
+                    style={{
+                      minHeight: "36px",
+                      lineHeight: "1.2",
+                      padding: "0.4rem 0.9rem",
+                    }}
                   >
                     Inspections
                   </Button>
 
                   <Dropdown align="end">
-                    <Dropdown.Toggle as={KebabToggle}
+                    <Dropdown.Toggle
+                      as={KebabToggle}
                       variant="light"
                       className="d-inline-flex align-items-center justify-content-center p-0"
                       aria-label="Row actions"
                     >
-                      {/* If you don't use bootstrap-icons, replace with: <span style={{fontSize:18}}>⋮</span> */}
                       <i className="bi bi-three-dots-vertical" />
                     </Dropdown.Toggle>
 
-                    <Dropdown.Menu className="kebab-menu">
+                    <Dropdown.Menu className="kebab-menu shadow-sm">
                       <Dropdown.Item onClick={() => onEdit?.(t)}>
                         Edit
                       </Dropdown.Item>
