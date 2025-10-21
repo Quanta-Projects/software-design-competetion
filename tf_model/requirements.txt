@@ -23,6 +23,9 @@ matplotlib>=3.7.0
 requests>=2.31.0
 httpx>=0.25.0
 
+# Async File I/O
+aiofiles>=23.2.1
+
 # File Processing
 pathlib2>=2.3.7
 
