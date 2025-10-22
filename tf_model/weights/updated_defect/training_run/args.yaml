@@ -1,7 +1,7 @@
 task: detect
 mode: train
 model: weights/defects/best.pt
-data: temp_training_20251022_130051\data.yaml
+data: temp_training_20251022_184334\data.yaml
 epochs: 10
 time: null
 patience: 10
@@ -10,7 +10,7 @@ imgsz: 640
 save: true
 save_period: 5
 cache: false
-device: '0'
+device: cpu
 workers: 8
 project: weights\updated_defect
 name: training_run
@@ -103,4 +103,4 @@ auto_augment: randaugment
 erasing: 0.4
 cfg: null
 tracker: botsort.yaml
-save_dir: D:\software-design-competetion\tf_model\weights\updated_defect\training_run
+save_dir: C:\Users\USER\Desktop\Academic\Semester 7\Software Design and Competetion\software-design-competetion-new\tf_model\weights\updated_defect\training_run

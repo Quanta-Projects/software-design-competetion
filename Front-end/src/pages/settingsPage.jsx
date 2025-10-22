@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Button, Card, Alert, Spinner, Badge, Modal, Table, Form, Row, Col, ProgressBar, Toast, ToastContainer } from "react-bootstrap";
 import { getFastApiUrl } from "../utils/config";
+import { fetchAnnotationsCsv } from "../api/annotations";
+import { downloadBlob } from "../utils/download";
 
 export default function SettingsPage() {
   // Dataset preparation state
@@ -27,6 +29,10 @@ export default function SettingsPage() {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastVariant, setToastVariant] = useState("success");
+
+  // CSV download state
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState(null);
 
   // Training configuration
   const [trainingConfig, setTrainingConfig] = useState({
@@ -294,6 +300,37 @@ export default function SettingsPage() {
 
   const formatDate = (isoString) => {
     return new Date(isoString).toLocaleString();
+  };
+
+  // CSV download handler
+  const handleDownloadAnnotations = async () => {
+    setDownloadError(null);
+    setDownloading(true);
+    
+    try {
+      const blob = await fetchAnnotationsCsv();
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const dd = String(today.getDate()).padStart(2, "0");
+      downloadBlob(blob, `annotations_${yyyy}-${mm}-${dd}.csv`);
+      
+      // Show success toast
+      setToastMessage("📥 Annotations exported successfully!");
+      setToastVariant("success");
+      setShowToast(true);
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : "Download failed";
+      console.error("CSV Download Error:", errorMsg, e);
+      setDownloadError(errorMsg);
+      
+      // Show error toast
+      setToastMessage(`❌ Export failed: ${errorMsg}`);
+      setToastVariant("danger");
+      setShowToast(true);
+    } finally {
+      setDownloading(false);
+    }
   };
 
   // Cleanup SSE connection on unmount
@@ -799,6 +836,60 @@ export default function SettingsPage() {
           </Card.Body>
         </Card>
       )}
+
+      {/* Data Export Card */}
+      <Card className="mb-4">
+        <Card.Header className="bg-warning text-dark">
+          <h5 className="mb-0">
+            <i className="bi bi-download me-2"></i>
+            Data Export
+          </h5>
+        </Card.Header>
+        <Card.Body>
+          <p className="text-muted">
+            Export all annotations from the database as a CSV file for analysis or backup.
+          </p>
+
+          <div role="group" aria-label="Data export">
+            <Button
+              variant="warning"
+              size="lg"
+              onClick={handleDownloadAnnotations}
+              disabled={downloading}
+              aria-busy={downloading}
+            >
+              {downloading ? (
+                <>
+                  <Spinner
+                    as="span"
+                    animation="border"
+                    size="sm"
+                    role="status"
+                    aria-hidden="true"
+                    className="me-2"
+                  />
+                  Preparing CSV...
+                </>
+              ) : (
+                <>
+                  <i className="bi bi-file-earmark-spreadsheet me-2"></i>
+                  Download Annotations (CSV)
+                </>
+              )}
+            </Button>
+
+            {downloadError && (
+              <Alert variant="danger" className="mt-3 mb-0" role="alert" dismissible onClose={() => setDownloadError(null)}>
+                <Alert.Heading className="h6">
+                  <i className="bi bi-exclamation-triangle me-2"></i>
+                  Could not download
+                </Alert.Heading>
+                <p className="mb-0">{downloadError}</p>
+              </Alert>
+            )}
+          </div>
+        </Card.Body>
+      </Card>
 
       {/* Result Modal */}
       <Modal show={showResultModal} onHide={handleCloseModal} size="lg" centered>

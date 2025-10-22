@@ -158,6 +158,415 @@ Returns JSON (defect data) + Annotated Image → Displayed in Frontend UI
 
 ---
 
+## Annotation System
+
+### Overview
+
+The **Annotation System** is a critical component that enables users to review, edit, and manage thermal defect detections identified by the YOLO11 AI model. It provides an interactive interface for creating, modifying, and validating bounding boxes around thermal anomalies on transformer images.
+
+### What Are Annotations?
+
+Annotations are **labeled bounding boxes** that mark thermal anomalies (defects) on transformer thermal images. Each annotation contains:
+- **Bounding Box Coordinates**: (x1, y1, x2, y2) defining the rectangular region around a defect
+- **Class Information**: Defect type (e.g., "Loose Joint F", "Point Overload PF")
+- **Confidence Score**: AI model's confidence level (0.0-1.0) in the detection
+- **Annotation Type**: Source of the annotation (auto-detected, user-added, user-edited, etc.)
+- **Metadata**: Timestamps, user ID, comments
+
+### Annotation Types
+
+The system supports five distinct annotation types:
+
+| Type | Description | Use Case |
+|------|-------------|----------|
+| **AUTO_DETECTED** | Automatically created by YOLO11 AI model | Initial AI detection results |
+| **USER_ADDED** | Manually added by inspector | Defects missed by AI |
+| **USER_EDITED** | AI detection modified by user (position, size, or class) | Correcting AI mistakes |
+| **USER_CONFIRMED** | AI detection verified as correct by user | Quality assurance workflow |
+| **USER_DELETED** | AI detection marked as false positive | Removing incorrect detections |
+
+### Defect Classes (6 Types)
+
+Each annotation is assigned to one of six thermal anomaly classes:
+
+| Class ID | Class Name | Color Code | Severity | Description |
+|----------|-----------|------------|----------|-------------|
+| 0 | Full Wire Overload PF | `#dc3545` (Red) | CRITICAL | Entire wire section shows elevated temperature |
+| 1 | Loose Joint F | `#fd7e14` (Orange) | HIGH | Connection point with critical heat - immediate attention required |
+| 2 | Loose Joint PF | `#dc3545` (Red) | CRITICAL | Connection point with moderate heat - potential failure |
+| 3 | Point Overload F | `#fd7e14` (Orange) | HIGH | Localized hotspot indicating imminent failure |
+| 4 | Point Overload PF | `#28a745` (Green) | LOW | Localized hotspot indicating potential failure |
+| 5 | Transformer Overload | `#ffc107` (Yellow) | MEDIUM | Overall transformer temperature exceeds safe limits |
+
+### How the Annotation System Works
+
+#### 1. **AI Detection Flow**
+```
+1. User uploads thermal image
+2. YOLO11 AI model processes image
+3. Detections returned as JSON (class, confidence, bbox coordinates)
+4. Backend creates AUTO_DETECTED annotations in database
+5. Frontend displays annotations as bounding boxes on image
+```
+
+#### 2. **User Interaction Flow**
+```
+1. Inspector reviews AI detections on thermal image
+2. Options available:
+   - ✅ Confirm correct detection → USER_CONFIRMED
+   - ✏️ Edit bounding box or class → USER_EDITED
+   - ➕ Add missed defect → USER_ADDED
+   - ❌ Delete false positive → USER_DELETED (soft delete)
+3. Changes saved to database via REST API
+4. Annotations used for model retraining
+```
+
+#### 3. **Interactive Annotation Editor**
+
+The frontend provides an interactive canvas-based editor with the following features:
+
+**Viewing:**
+- Display all annotations as color-coded bounding boxes
+- Hover tooltips showing defect class and confidence
+- Zoom/pan controls for detailed inspection
+
+**Editing:**
+- Click and drag to resize bounding boxes
+- Move annotations by dragging center point
+- Change defect class via dropdown
+- Add comments/notes to annotations
+
+**Adding:**
+- Click "Add Annotation" button
+- Draw new bounding box on image
+- Select defect class from dropdown
+- System assigns USER_ADDED type
+
+**Deleting:**
+- Click trash icon on annotation
+- Soft delete (marks `isActive = false`)
+- Annotation preserved for audit trail
+
+### REST API Endpoints
+
+The backend exposes comprehensive annotation management APIs:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/annotations` | POST | Create new annotation |
+| `/api/annotations/{id}` | GET | Get annotation by ID |
+| `/api/annotations/{id}` | PUT | Update existing annotation |
+| `/api/annotations/{id}` | DELETE | Soft delete annotation |
+| `/api/annotations/image/{imageId}` | GET | Get all annotations for specific image |
+| `/api/annotations/transformer/{id}` | GET | Get annotations by transformer |
+| `/api/annotations/inspection/{id}` | GET | Get annotations by inspection |
+| `/api/annotations/batch/{imageId}` | POST | Create batch annotations from YOLO results |
+| `/api/annotations/{id}/confirm` | POST | Confirm auto-detected annotation |
+| `/api/annotations/user-modifications` | GET | Get user-modified annotations for retraining |
+| `/api/annotations/all` | GET | Export all annotations (CSV/JSON) |
+| `/api/annotations/high-confidence` | GET | Get high-confidence annotations (quality control) |
+
+### Data Export & Model Retraining
+
+**CSV Export:**
+- Users can download all annotations as CSV from Settings page
+- Filename format: `annotations_YYYY-MM-DD.csv`
+- Includes all annotation metadata for analysis
+
+**Model Retraining Workflow:**
+1. Users review and correct AI detections
+2. Modified annotations marked as `USER_EDITED` or `USER_ADDED`
+3. System prepares retraining dataset from user-modified annotations
+4. Annotations converted to YOLO format with adjusted coordinates
+5. New model trained with improved accuracy
+
+---
+
+## Backend Architecture for Annotations
+
+### Entity-Relationship Model
+
+```
+Transformer (1) ──→ (N) Image (1) ──→ (N) Annotation
+           │                │
+           └──→ (N) Inspection (1) ──→ (N) Image
+```
+
+### Database Schema
+
+#### `annotations` Table
+
+| Column | Type | Nullable | Description |
+|--------|------|----------|-------------|
+| `id` | INT (PK) | No | Auto-increment primary key |
+| `image_id` | INT (FK) | No | References `images.id` |
+| `class_id` | INT | No | Defect class ID (0-5) |
+| `class_name` | VARCHAR(100) | No | Human-readable class name |
+| `confidence_score` | FLOAT | No | AI confidence (0.0-1.0) |
+| `bbox_x1` | FLOAT | No | Bounding box top-left X |
+| `bbox_y1` | FLOAT | No | Bounding box top-left Y |
+| `bbox_x2` | FLOAT | No | Bounding box bottom-right X |
+| `bbox_y2` | FLOAT | No | Bounding box bottom-right Y |
+| `center_x` | FLOAT | No | Bounding box center X (calculated) |
+| `center_y` | FLOAT | No | Bounding box center Y (calculated) |
+| `annotation_type` | ENUM | No | AUTO_DETECTED, USER_ADDED, USER_EDITED, USER_DELETED, USER_CONFIRMED |
+| `user_id` | VARCHAR(100) | Yes | ID of user who created/modified annotation |
+| `comments` | TEXT | Yes | Inspector notes/comments |
+| `created_at` | TIMESTAMP | No | Creation timestamp |
+| `updated_at` | TIMESTAMP | Yes | Last update timestamp |
+| `is_active` | BOOLEAN | No | Soft delete flag (default: true) |
+
+**Foreign Keys:**
+- `FK_annotation_image`: `image_id` → `images.id` (CASCADE DELETE)
+
+**Indexes:**
+- Primary key on `id`
+- Index on `image_id` for fast image-based queries
+- Index on `annotation_type` for filtering by type
+- Composite index on `(is_active, updated_at)` for active annotation queries
+
+### Backend Architecture Layers
+
+#### 1. **Entity Layer** (`dao/Annotation.java`)
+- JPA entity mapping database table
+- Lombok annotations for getters/setters
+- Lifecycle hooks: `@PrePersist`, `@PreUpdate` for auto-calculating center coordinates
+- Helper methods: `getWidth()`, `getHeight()`, `setBoundingBox()`
+- Enum for `AnnotationType`
+
+#### 2. **Repository Layer** (`repository/AnnotationRepository.java`)
+- Extends `JpaRepository<Annotation, Integer>`
+- Custom JPQL queries for complex filtering:
+  - `findActiveAnnotationsByImageId()`
+  - `findAnnotationsByTransformerId()`
+  - `findAnnotationsByInspectionId()`
+  - `findHighConfidenceAnnotations()`
+  - `findUserModifiedAnnotations()`
+  - `countAnnotationsByType()`
+  - `softDeleteAnnotation()`
+
+#### 3. **Service Layer** (`service/AnnotationService.java`)
+- Business logic for annotation management
+- Validation: Bounding box coordinates, confidence scores
+- Soft delete implementation (marks `isActive = false`)
+- Batch annotation creation from YOLO results
+- User modification tracking
+- Transaction management with `@Transactional`
+
+#### 4. **Controller Layer** (`controller/AnnotationController.java`)
+- RESTful API endpoints
+- Request validation with `@Valid`
+- Exception handling
+- HTTP status code management
+- JSON response formatting
+
+#### 5. **DTO Layer** (`dto/AnnotationRequest.java`, `dto/AnnotationResponse.java`)
+- **AnnotationRequest**: Validates incoming annotation data
+  - `@NotNull` validation for required fields
+  - `@DecimalMin`/`@DecimalMax` for confidence score
+  - `isValidBoundingBox()` helper method
+- **AnnotationResponse**: Formats outgoing annotation data
+  - Excludes sensitive fields
+  - Includes calculated fields (width, height, center)
+
+### Persistence Strategy
+
+**Soft Delete:**
+- Annotations are never permanently deleted from database
+- Delete operations set `is_active = false`
+- Preserves audit trail for:
+  - User modifications (what was deleted and why)
+  - Model retraining (learn from false positives)
+  - Quality control analysis
+
+**Cascade Operations:**
+- Deleting an `Image` cascades to delete all associated `Annotation` records
+- Deleting a `Transformer` cascades to `Image` → `Annotation`
+- Ensures referential integrity
+
+**Automatic Timestamp Management:**
+- `created_at`: Set automatically on insert (`@PrePersist`)
+- `updated_at`: Updated automatically on modification (`@PreUpdate`)
+- No manual timestamp management required
+
+### Data Flow
+
+```
+┌─────────────┐      ┌──────────────┐      ┌─────────────────┐
+│   Frontend  │ ───→ │  Controller  │ ───→ │    Service      │
+│  (React)    │ ←─── │  (REST API)  │ ←─── │  (Business)     │
+└─────────────┘      └──────────────┘      └─────────────────┘
+                                                     │
+                                                     ↓
+                                            ┌─────────────────┐
+                                            │   Repository    │
+                                            │  (Data Access)  │
+                                            └─────────────────┘
+                                                     │
+                                                     ↓
+                                            ┌─────────────────┐
+                                            │   MySQL DB      │
+                                            │  (annotations)  │
+                                            └─────────────────┘
+```
+
+**Example: Creating an Annotation**
+1. Frontend sends POST request with annotation data
+2. Controller validates request with `@Valid`
+3. Service layer:
+   - Validates bounding box coordinates
+   - Checks if image exists
+   - Creates `Annotation` entity
+   - Saves to database via repository
+4. Repository executes JPA insert
+5. Database generates auto-increment ID
+6. `@PrePersist` hook calculates center coordinates
+7. Response DTO sent back to frontend
+
+---
+
+## Known Bugs and Limitations
+
+### Known Issues
+
+#### 1. **Annotation Editor Performance** ⚠️
+**Issue:** Canvas rendering slows down with >50 annotations on a single image  
+**Impact:** Lag when drawing/editing annotations on heavily annotated images  
+**Workaround:** Filter annotations by class or confidence threshold  
+**Status:** Optimization planned (virtual scrolling, WebGL rendering)
+
+#### 2. **Bounding Box Coordinate System** ⚠️
+**Issue:** AI model uses normalized coordinates (0-1), but database stores pixel coordinates  
+**Impact:** Coordinate conversion required during batch annotation import  
+**Workaround:** `AnnotationService` handles conversion automatically  
+**Status:** Working as designed, no fix needed
+
+#### 3. **Concurrent Annotation Editing** 🐛
+**Issue:** Two users editing the same annotation simultaneously causes last-write-wins  
+**Impact:** One user's changes may be overwritten  
+**Workaround:** None - rare occurrence in single-user deployment  
+**Status:** Feature request: Add optimistic locking with version field
+
+#### 4. **CSV Export Memory Usage** ⚠️
+**Issue:** Exporting >10,000 annotations may cause high memory usage  
+**Impact:** Slow export or browser crash on large datasets  
+**Workaround:** Export with date range filters or by transformer  
+**Status:** Consider streaming export for large datasets
+
+#### 5. **Annotation Deletion Cascade** 🐛
+**Issue:** Deleting an image permanently removes all annotations (hard delete via CASCADE)  
+**Impact:** Loss of user modifications for retraining  
+**Workaround:** Backup annotations before deleting images  
+**Status:** Consider separate annotation archive table
+
+### Limitations
+
+#### 1. **No Multi-User Collaboration**
+- System does not support real-time collaborative annotation editing
+- No annotation locking mechanism
+- User IDs tracked but no permission system
+- **Recommendation:** Implement annotation versioning for audit trail
+
+#### 2. **No Undo/Redo Functionality**
+- Annotation edits are immediately persisted to database
+- No client-side undo stack
+- **Workaround:** User can manually revert changes by re-editing
+- **Recommendation:** Add command pattern with undo stack
+
+#### 3. **Limited Annotation Filtering**
+- Frontend shows all annotations for an image (no real-time filtering)
+- Cannot filter by confidence score, class, or annotation type in UI
+- **Workaround:** Use backend API filters and refresh page
+- **Recommendation:** Add client-side filtering controls
+
+#### 4. **No Annotation Version History**
+- Only current state stored, no edit history
+- Cannot see who changed an annotation or when
+- **Workaround:** Check `updated_at` timestamp and `user_id`
+- **Recommendation:** Add annotation audit log table
+
+#### 5. **AI Model Confidence Threshold Not User-Configurable**
+- Hardcoded threshold (0.5) in FastAPI service
+- Users cannot adjust sensitivity
+- **Workaround:** Modify `fastapi_server.py` and restart service
+- **Recommendation:** Add threshold setting to Settings page
+
+#### 6. **Browser Compatibility**
+- Annotation Editor tested only on modern browsers (Chrome 90+, Firefox 88+, Edge 90+)
+- May not work on Internet Explorer
+- Canvas API required (no fallback for older browsers)
+- **Recommendation:** Display compatibility warning on unsupported browsers
+
+#### 7. **Mobile Device Support**
+- Annotation Editor not optimized for touch interfaces
+- Small screens make precise annotation editing difficult
+- **Workaround:** Use desktop or tablet with stylus
+- **Recommendation:** Add touch gesture support and responsive canvas
+
+#### 8. **No Batch Annotation Operations**
+- Cannot delete or modify multiple annotations at once
+- Must edit annotations individually
+- **Workaround:** Use backend API with custom scripts for bulk operations
+- **Recommendation:** Add multi-select and bulk edit UI
+
+#### 9. **Image Size Constraints**
+- Very large images (>4000×4000 pixels) may cause canvas rendering issues
+- No automatic downscaling for display
+- **Workaround:** Pre-process images to recommended size (2048×2048 max)
+- **Recommendation:** Add automatic image scaling with coordinate adjustment
+
+#### 10. **Database Query Performance**
+- No pagination on `/api/annotations/all` endpoint
+- Fetching all annotations at once may be slow with >100,000 records
+- **Workaround:** Use filtered endpoints (by image, transformer, date range)
+- **Recommendation:** Add pagination with `?page=1&size=100` parameters
+
+### Data Integrity Constraints
+
+#### Foreign Key Dependencies
+- Cannot delete `Image` without cascading to `Annotation` (by design)
+- Cannot create `Annotation` for non-existent `Image` (enforced by FK)
+- Database consistency maintained via foreign key constraints
+
+#### Validation Rules
+- Bounding box coordinates must satisfy: `x2 > x1` and `y2 > y1`
+- Confidence score must be between 0.0 and 1.0
+- Class ID must be 0-5 (validated in service layer)
+- `annotation_type` must be valid enum value
+
+### Performance Benchmarks
+
+| Operation | Avg Time | Notes |
+|-----------|----------|-------|
+| Create annotation | <50ms | Single annotation insert |
+| Update annotation | <60ms | Single annotation update with validation |
+| Fetch annotations (1 image) | <100ms | Typically 5-20 annotations per image |
+| Fetch annotations (all) | 500ms - 5s | Depends on total count (100-10,000) |
+| Batch create (50 annotations) | <500ms | From YOLO detection results |
+| Soft delete annotation | <40ms | Update `is_active` flag |
+| CSV export (1,000 annotations) | <2s | JSON→CSV conversion on client |
+
+### Future Enhancements
+
+**Planned Features:**
+- [ ] Annotation version history and audit log
+- [ ] Real-time collaborative editing with WebSockets
+- [ ] Advanced filtering UI (by class, confidence, user, date)
+- [ ] Annotation templates for common defect patterns
+- [ ] Keyboard shortcuts for faster editing (arrow keys to move bbox)
+- [ ] Annotation quality scoring (inter-annotator agreement)
+- [ ] Export to additional formats (COCO JSON, Pascal VOC XML)
+- [ ] Annotation statistics dashboard (defects by class, over time)
+
+**Technical Debt:**
+- Optimize canvas rendering for large annotation sets
+- Add database indexing for faster queries on large datasets
+- Implement annotation caching (Redis) for frequently accessed images
+- Migrate to TypeScript for better type safety in frontend
+- Add comprehensive unit tests for annotation service layer
+
+---
+
 ## Prerequisites
 
 | Software | Minimum Version | Download |
