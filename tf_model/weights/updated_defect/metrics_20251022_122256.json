@@ -1,0 +1,117 @@
+{
+  "training_config": {
+    "new_dataset_path": "new_dataset",
+    "base_dataset_path": "Transformer Defects",
+    "temp_dir": "temp_training_20251022_122255",
+    "base_model_path": "weights/defects/best.pt",
+    "epochs": 10,
+    "batch_size": 16,
+    "learning_rate": 0.001,
+    "image_size": 640,
+    "use_gpu": true,
+    "seed": 42,
+    "output_dir": "weights/updated_defect"
+  },
+  "dataset_info": {
+    "success": true,
+    "temp_dir": "temp_training_20251022_122255",
+    "data_yaml": "temp_training_20251022_122255\\data.yaml",
+    "base_train_count": 215,
+    "new_dataset_count": 9,
+    "total_train_count": 224,
+    "warnings": []
+  },
+  "metrics": [
+    {
+      "epoch": 1,
+      "train_loss": 1.33059,
+      "val_loss": 1.68751,
+      "precision": 0.72706,
+      "recall": 0.46,
+      "mAP50": 0.48944,
+      "mAP50_95": 0.27027
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.19368,
+      "val_loss": 1.58263,
+      "precision": 0.74254,
+      "recall": 0.45617,
+      "mAP50": 0.37035,
+      "mAP50_95": 0.21925
+    },
+    {
+      "epoch": 3,
+      "train_loss": 1.1681,
+      "val_loss": 1.61038,
+      "precision": 0.7866,
+      "recall": 0.45616,
+      "mAP50": 0.48383,
+      "mAP50_95": 0.29742
+    },
+    {
+      "epoch": 4,
+      "train_loss": 1.14485,
+      "val_loss": 1.57385,
+      "precision": 0.92024,
+      "recall": 0.45372,
+      "mAP50": 0.49204,
+      "mAP50_95": 0.33082
+    },
+    {
+      "epoch": 5,
+      "train_loss": 1.14829,
+      "val_loss": 1.68235,
+      "precision": 0.87045,
+      "recall": 0.46,
+      "mAP50": 0.4848,
+      "mAP50_95": 0.2836
+    },
+    {
+      "epoch": 6,
+      "train_loss": 1.13382,
+      "val_loss": 1.59316,
+      "precision": 0.88311,
+      "recall": 0.44,
+      "mAP50": 0.48592,
+      "mAP50_95": 0.30679
+    },
+    {
+      "epoch": 7,
+      "train_loss": 1.04804,
+      "val_loss": 1.62141,
+      "precision": 0.85034,
+      "recall": 0.44,
+      "mAP50": 0.48801,
+      "mAP50_95": 0.31542
+    },
+    {
+      "epoch": 8,
+      "train_loss": 1.05976,
+      "val_loss": 1.58644,
+      "precision": 0.87947,
+      "recall": 0.44121,
+      "mAP50": 0.49062,
+      "mAP50_95": 0.31519
+    },
+    {
+      "epoch": 9,
+      "train_loss": 1.045,
+      "val_loss": 1.60673,
+      "precision": 0.9369,
+      "recall": 0.42123,
+      "mAP50": 0.4879,
+      "mAP50_95": 0.29264
+    },
+    {
+      "epoch": 10,
+      "train_loss": 1.00922,
+      "val_loss": 1.58791,
+      "precision": 0.94505,
+      "recall": 0.44,
+      "mAP50": 0.48621,
+      "mAP50_95": 0.31414
+    }
+  ],
+  "weights_path": "weights\\updated_defect\\weights_20251022_122256.pt"
+}
