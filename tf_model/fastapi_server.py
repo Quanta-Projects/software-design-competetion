@@ -16,6 +16,10 @@ import os
 import json
 from datetime import datetime
 import sys
+import httpx
+import aiofiles
+import asyncio
+from asyncio import Semaphore
 
 # Add parent directory to path to import the two-stage detector
 sys.path.append(str(Path(__file__).parent.parent / "tf_model"))
@@ -90,6 +94,20 @@ class EditableAnnotation(BaseModel):
     confidence: float
     bbox: List[float]  # [x1, y1, x2, y2]
     metadata: AnnotationMetadata
+
+class RetrainingDatasetError(BaseModel):
+    """Error details for dataset preparation"""
+    imageId: str
+    stage: str  # "download" or "labels"
+    message: str
+
+class RetrainingDatasetSummary(BaseModel):
+    """Summary of retraining dataset preparation"""
+    totalImages: int
+    skippedAnnotated: int
+    downloaded: int
+    labeled: int
+    errors: List[RetrainingDatasetError]
 
 # TWO-STAGE TRANSFORMER DEFECT DETECTION ENGINE
 class TwoStageTransformerDetector:
@@ -621,6 +639,379 @@ async def process_annotations(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Annotation processing failed: {str(e)}")
+
+@app.post("/tools/retrain/prepare-dataset", response_model=RetrainingDatasetSummary)
+async def prepare_retraining_dataset():
+    """
+    Prepare a retraining dataset by fetching images and annotations from the backend API.
+    
+    This endpoint:
+    1. Fetches all images from the backend
+    2. Filters out images with imageType === "ANNOTATED"
+    3. Downloads images to tf_models/new_dataset/images/
+    4. Fetches annotations and converts them to YOLO format
+    5. Saves labels to tf_models/new_dataset/labels/
+    
+    Returns:
+        RetrainingDatasetSummary: Summary of the preparation process
+    """
+    try:
+        # Backend API base URL (from CORS config)
+        backend_url = "http://localhost:8080"
+        
+        # Output directories
+        base_dir = Path(__file__).parent / "new_dataset"
+        images_dir = base_dir / "images"
+        labels_dir = base_dir / "labels"
+        
+        # Ensure directories exist
+        images_dir.mkdir(parents=True, exist_ok=True)
+        labels_dir.mkdir(parents=True, exist_ok=True)
+        
+        print(f"🚀 Starting retraining dataset preparation...")
+        print(f"   Output directory: {base_dir}")
+        
+        # Initialize counters
+        total_images = 0
+        skipped_annotated = 0
+        downloaded = 0
+        labeled = 0
+        errors = []
+        
+        # Concurrency control
+        semaphore = Semaphore(5)
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Step 1: Fetch all images
+            print("   📥 Fetching all images from backend...")
+            try:
+                response = await client.get(f"{backend_url}/api/images")
+                response.raise_for_status()
+                images = response.json()
+                total_images = len(images)
+                print(f"   ✅ Found {total_images} images")
+            except Exception as e:
+                print(f"   ❌ Failed to fetch images: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Failed to fetch images: {str(e)}")
+            
+            # Step 2: Filter out ANNOTATED images
+            filtered_images = []
+            for img in images:
+                if img.get("imageType") == "ANNOTATED":
+                    skipped_annotated += 1
+                    print(f"   ⏭️  Skipping annotated image: {img.get('fileName', 'unknown')}")
+                else:
+                    filtered_images.append(img)
+            
+            print(f"   📊 Processing {len(filtered_images)} images ({skipped_annotated} annotated images skipped)")
+            
+            # Helper function to download and process a single image
+            async def process_image(img: Dict[str, Any]):
+                nonlocal downloaded, labeled
+                
+                async with semaphore:
+                    image_id = img.get("id")
+                    file_path = img.get("filePath", "")
+                    
+                    # Derive fileName from filePath (handle nested paths)
+                    if file_path:
+                        file_name = os.path.basename(file_path)
+                    else:
+                        file_name = img.get("fileName", f"image_{image_id}.jpg")
+                    
+                    # Step 3: Download image with retries
+                    max_retries = 3
+                    retry_delay = 1.0
+                    image_downloaded = False
+                    image_width = None
+                    image_height = None
+                    crop_offset_x = 0  # Track crop offset for annotation adjustment
+                    crop_offset_y = 0
+                    
+                    for retry in range(max_retries):
+                        try:
+                            print(f"   🔽 Downloading image {file_name} (attempt {retry + 1}/{max_retries})...")
+                            download_response = await client.get(
+                                f"{backend_url}/api/images/download/{file_name}",
+                                follow_redirects=True
+                            )
+                            download_response.raise_for_status()
+                            
+                            # Read image into memory first
+                            image_bytes = download_response.content
+                            image_np = np.frombuffer(image_bytes, np.uint8)
+                            image_data = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
+                            
+                            if image_data is None:
+                                raise Exception("Failed to decode image")
+                            
+                            original_height, original_width = image_data.shape[:2]
+                            print(f"   ✅ Downloaded: {file_name} ({original_width}x{original_height})")
+                            
+                            # Step 3.5: Segment transformer and apply binary mask
+                            if detector.transformer_model is not None:
+                                try:
+                                    print(f"   🎯 Segmenting transformer from {file_name}...")
+                                    
+                                    # Run transformer segmentation
+                                    results = detector.transformer_model(image_data, conf=0.25, verbose=False)
+                                    
+                                    if results and len(results) > 0:
+                                        result = results[0]
+                                        
+                                        if result.boxes is not None and len(result.boxes) > 0:
+                                            # Get the transformer with highest confidence
+                                            confidences = result.boxes.conf.cpu().numpy()
+                                            best_idx = np.argmax(confidences)
+                                            confidence = confidences[best_idx]
+                                            
+                                            # Get bounding box
+                                            box = result.boxes.xyxy[best_idx].cpu().numpy().astype(int)
+                                            x1, y1, x2, y2 = box
+                                            
+                                            # Create binary mask
+                                            mask = np.zeros(image_data.shape[:2], dtype=np.uint8)
+                                            
+                                            # Check if segmentation mask is available
+                                            if result.masks is not None and len(result.masks) > best_idx:
+                                                # Use segmentation mask
+                                                mask_data = result.masks.data[best_idx].cpu().numpy()
+                                                
+                                                # Resize mask to match image dimensions if needed
+                                                if mask_data.shape != image_data.shape[:2]:
+                                                    mask = cv2.resize(mask_data, (original_width, original_height))
+                                                    mask = (mask * 255).astype(np.uint8)
+                                                else:
+                                                    mask = (mask_data * 255).astype(np.uint8)
+                                                
+                                                print(f"   ✅ Using segmentation mask (confidence: {confidence:.2f})")
+                                            else:
+                                                # Fallback: Use bounding box as mask
+                                                mask[y1:y2, x1:x2] = 255
+                                                print(f"   ℹ️  Using bounding box mask (confidence: {confidence:.2f})")
+                                            
+                                            # Apply binary mask to extract ROI
+                                            # Create 3-channel mask for color image
+                                            mask_3ch = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+                                            
+                                            # Apply mask (keep transformer region, black out background)
+                                            segmented_image = cv2.bitwise_and(image_data, mask_3ch)
+                                            
+                                            # Optional: Crop to bounding box to save space
+                                            # Add some padding
+                                            padding = 20
+                                            x1_crop = max(0, x1 - padding)
+                                            y1_crop = max(0, y1 - padding)
+                                            x2_crop = min(original_width, x2 + padding)
+                                            y2_crop = min(original_height, y2 + padding)
+                                            
+                                            # Store crop offset for annotation adjustment
+                                            crop_offset_x = x1_crop
+                                            crop_offset_y = y1_crop
+                                            
+                                            # Crop the segmented image
+                                            segmented_image = segmented_image[y1_crop:y2_crop, x1_crop:x2_crop]
+                                            
+                                            # Update dimensions for label conversion
+                                            image_height, image_width = segmented_image.shape[:2]
+                                            
+                                            # Use segmented image
+                                            image_data = segmented_image
+                                            
+                                            print(f"   ✅ Segmented transformer region: {image_width}x{image_height} (offset: {crop_offset_x}, {crop_offset_y})")
+                                        else:
+                                            print(f"   ⚠️  No transformer detected, using original image")
+                                            image_height, image_width = original_height, original_width
+                                    else:
+                                        print(f"   ⚠️  Segmentation failed, using original image")
+                                        image_height, image_width = original_height, original_width
+                                        
+                                except Exception as seg_error:
+                                    print(f"   ⚠️  Segmentation error: {str(seg_error)}, using original image")
+                                    image_height, image_width = original_height, original_width
+                            else:
+                                print(f"   ℹ️  Transformer model not loaded, using original image")
+                                image_height, image_width = original_height, original_width
+                            
+                            # Save the (potentially segmented) image
+                            image_path = images_dir / file_name
+                            cv2.imwrite(str(image_path), image_data)
+                            
+                            downloaded += 1
+                            image_downloaded = True
+                            break
+                            
+                        except Exception as e:
+                            if retry < max_retries - 1:
+                                wait_time = retry_delay * (2 ** retry)  # Exponential backoff
+                                print(f"   ⚠️  Retry after {wait_time}s due to: {str(e)}")
+                                await asyncio.sleep(wait_time)
+                            else:
+                                print(f"   ❌ Failed to download {file_name}: {str(e)}")
+                                errors.append(RetrainingDatasetError(
+                                    imageId=str(image_id),
+                                    stage="download",
+                                    message=str(e)
+                                ))
+                                return
+                    
+                    if not image_downloaded or image_width is None or image_height is None:
+                        return
+                    
+                    # Step 4: Fetch annotations for this image
+                    try:
+                        print(f"   📝 Fetching annotations for image {image_id}...")
+                        
+                        # Fetch all user modifications and filter by imageId
+                        annotations_response = await client.get(
+                            f"{backend_url}/api/annotations/user-modifications"
+                        )
+                        
+                        # Note: The endpoint might return 404 or empty list if no annotations
+                        if annotations_response.status_code == 404:
+                            annotations = []
+                            print(f"   ℹ️  No user modifications found (404)")
+                        else:
+                            annotations_response.raise_for_status()
+                            all_annotations = annotations_response.json()
+                            
+                            # Filter annotations for this specific image
+                            annotations = [ann for ann in all_annotations if ann.get("imageId") == image_id]
+                            print(f"   ℹ️  Found {len(annotations)} annotations for image {image_id} (from {len(all_annotations)} total)")
+                        
+                        # Alternative: Try image-specific endpoint if no annotations found
+                        if not annotations or len(annotations) == 0:
+                            try:
+                                print(f"   🔄 Trying alternative endpoint: /api/annotations/image/{image_id}")
+                                alt_response = await client.get(f"{backend_url}/api/annotations/image/{image_id}")
+                                if alt_response.status_code == 200:
+                                    annotations = alt_response.json()
+                                    print(f"   ✅ Found {len(annotations)} annotations from alternative endpoint")
+                            except Exception as alt_error:
+                                print(f"   ℹ️  Alternative endpoint also returned no annotations: {str(alt_error)}")
+                                pass  # Continue with empty annotations
+                        
+                        # Convert annotations to YOLO format
+                        base_name = os.path.splitext(file_name)[0]
+                        label_path = labels_dir / f"{base_name}.txt"
+                        
+                        if annotations and len(annotations) > 0:
+                            yolo_lines = []
+                            
+                            for ann in annotations:
+                                # Get bounding box coordinates (x1, y1, x2, y2)
+                                bbox_x1 = ann.get("bboxX1")
+                                bbox_y1 = ann.get("bboxY1")
+                                bbox_x2 = ann.get("bboxX2")
+                                bbox_y2 = ann.get("bboxY2")
+                                
+                                if None in [bbox_x1, bbox_y1, bbox_x2, bbox_y2]:
+                                    continue
+                                
+                                # Adjust coordinates for crop offset (if image was segmented and cropped)
+                                adjusted_x1 = bbox_x1 - crop_offset_x
+                                adjusted_y1 = bbox_y1 - crop_offset_y
+                                adjusted_x2 = bbox_x2 - crop_offset_x
+                                adjusted_y2 = bbox_y2 - crop_offset_y
+                                
+                                # Check if annotation is within the cropped region
+                                if adjusted_x2 <= 0 or adjusted_y2 <= 0 or adjusted_x1 >= image_width or adjusted_y1 >= image_height:
+                                    print(f"   ⏭️  Skipping annotation outside cropped region")
+                                    continue
+                                
+                                # Clip to image boundaries
+                                adjusted_x1 = max(0, adjusted_x1)
+                                adjusted_y1 = max(0, adjusted_y1)
+                                adjusted_x2 = min(image_width, adjusted_x2)
+                                adjusted_y2 = min(image_height, adjusted_y2)
+                                
+                                # Calculate width and height
+                                w = adjusted_x2 - adjusted_x1
+                                h = adjusted_y2 - adjusted_y1
+                                
+                                # Skip if annotation becomes too small after clipping
+                                if w <= 0 or h <= 0:
+                                    print(f"   ⏭️  Skipping invalid annotation after adjustment")
+                                    continue
+                                
+                                # Convert to YOLO normalized format
+                                x_center = (adjusted_x1 + w / 2) / image_width
+                                y_center = (adjusted_y1 + h / 2) / image_height
+                                w_norm = w / image_width
+                                h_norm = h / image_height
+                                
+                                # Format to 6 decimals
+                                x_center = round(x_center, 6)
+                                y_center = round(y_center, 6)
+                                w_norm = round(w_norm, 6)
+                                h_norm = round(h_norm, 6)
+                                
+                                # Get class ID or class name
+                                class_id = ann.get("classId")
+                                class_name = ann.get("className", "")
+                                
+                                # Use class_id if available, otherwise use class_name
+                                class_identifier = class_id if class_id is not None else class_name
+                                
+                                # Create YOLO format line with comment for error type
+                                yolo_line = f"{class_identifier} {x_center} {y_center} {w_norm} {h_norm}"
+                                if class_name:
+                                    yolo_line += f" # errorType={class_name}"
+                                
+                                yolo_lines.append(yolo_line)
+                            
+                            # Write labels to file
+                            async with aiofiles.open(label_path, 'w') as f:
+                                await f.write('\n'.join(yolo_lines) + '\n')
+                            
+                            labeled += 1
+                            print(f"   ✅ Created labels: {base_name}.txt ({len(yolo_lines)} annotations)")
+                        else:
+                            # Create empty label file
+                            async with aiofiles.open(label_path, 'w') as f:
+                                await f.write('')
+                            
+                            labeled += 1
+                            print(f"   ℹ️  Created empty labels: {base_name}.txt (no annotations)")
+                        
+                    except Exception as e:
+                        print(f"   ❌ Failed to process annotations for image {image_id}: {str(e)}")
+                        errors.append(RetrainingDatasetError(
+                            imageId=str(image_id),
+                            stage="labels",
+                            message=str(e)
+                        ))
+            
+            # Process all images concurrently
+            tasks = [process_image(img) for img in filtered_images]
+            await asyncio.gather(*tasks)
+        
+        # Create summary
+        summary = RetrainingDatasetSummary(
+            totalImages=total_images,
+            skippedAnnotated=skipped_annotated,
+            downloaded=downloaded,
+            labeled=labeled,
+            errors=errors
+        )
+        
+        print(f"\n✅ Dataset preparation complete!")
+        print(f"   Total images: {total_images}")
+        print(f"   Skipped annotated: {skipped_annotated}")
+        print(f"   Downloaded: {downloaded}")
+        print(f"   Labeled: {labeled}")
+        print(f"   Errors: {len(errors)}")
+        print(f"   Output: {base_dir}")
+        
+        return summary
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Dataset preparation failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Dataset preparation failed: {str(e)}")
 
 if __name__ == "__main__":
     try:
