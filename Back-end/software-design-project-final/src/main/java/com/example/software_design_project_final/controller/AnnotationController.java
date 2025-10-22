@@ -169,6 +169,19 @@ public class AnnotationController {
     }
 
     /**
+     * Get all annotations (for admin/audit purposes)
+     */
+    @GetMapping("/all")
+    public ResponseEntity<List<AnnotationResponse>> getAllAnnotations() {
+        try {
+            List<AnnotationResponse> annotations = annotationService.getAllAnnotations();
+            return ResponseEntity.ok(annotations);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
      * Get high confidence annotations for quality control
      */
     @GetMapping("/high-confidence")

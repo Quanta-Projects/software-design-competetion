@@ -21,13 +21,12 @@ export default function AnnotationList({
 
   // Anomaly class definitions
   const anomalyClasses = [
-    { id: 0, name: "Loose Joint (Faulty)", color: "#dc3545", severity: "CRITICAL" },
-    { id: 1, name: "Loose Joint (Potential)", color: "#fd7e14", severity: "HIGH" },
-    { id: 2, name: "Overheating (Faulty)", color: "#dc3545", severity: "CRITICAL" },
-    { id: 3, name: "Overheating (Potential)", color: "#fd7e14", severity: "HIGH" },
-    { id: 4, name: "Warm Area (Likely Normal)", color: "#28a745", severity: "LOW" },
-    { id: 5, name: "Warm Area (Potential Issue)", color: "#ffc107", severity: "MEDIUM" },
-    { id: 6, name: "Cooling System Issue", color: "#007bff", severity: "MEDIUM" }
+    { id: 0, name: "Full Wire Overload PF", color: "#dc3545", severity: "CRITICAL" },
+    { id: 1, name: "Loose Joint F", color: "#fd7e14", severity: "HIGH" },
+    { id: 2, name: "Loose Joint PF", color: "#dc3545", severity: "CRITICAL" },
+    { id: 3, name: "Point Overload F", color: "#fd7e14", severity: "HIGH" },
+    { id: 4, name: "Point Overload PF", color: "#28a745", severity: "LOW" },
+    { id: 5, name: "Transformer Overload", color: "#ffc107", severity: "MEDIUM" },
   ];
 
   const getClassById = (classId) => anomalyClasses.find(c => c.id === classId) || anomalyClasses[0];

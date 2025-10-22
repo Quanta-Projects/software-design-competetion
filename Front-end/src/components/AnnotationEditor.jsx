@@ -28,13 +28,12 @@ export default function AnnotationEditor({
 
   // Anomaly class definitions (matching YOLO model)
   const anomalyClasses = [
-    { id: 0, name: "Loose Joint (Faulty)", color: "#dc3545", severity: "CRITICAL" },
-    { id: 1, name: "Loose Joint (Potential)", color: "#fd7e14", severity: "HIGH" },
-    { id: 2, name: "Overheating (Faulty)", color: "#dc3545", severity: "CRITICAL" },
-    { id: 3, name: "Overheating (Potential)", color: "#fd7e14", severity: "HIGH" },
-    { id: 4, name: "Warm Area (Likely Normal)", color: "#28a745", severity: "LOW" },
-    { id: 5, name: "Warm Area (Potential Issue)", color: "#ffc107", severity: "MEDIUM" },
-    { id: 6, name: "Cooling System Issue", color: "#007bff", severity: "MEDIUM" }
+    { id: 0, name: "Full Wire Overload PF", color: "#dc3545", severity: "CRITICAL" },
+    { id: 1, name: "Loose Joint F", color: "#fd7e14", severity: "HIGH" },
+    { id: 2, name: "Loose Joint PF", color: "#dc3545", severity: "CRITICAL" },
+    { id: 3, name: "Point Overload F", color: "#fd7e14", severity: "HIGH" },
+    { id: 4, name: "Point Overload PF", color: "#28a745", severity: "LOW" },
+    { id: 5, name: "Transformer Overload", color: "#ffc107", severity: "MEDIUM" },
   ];
 
   const getClassById = (classId) => anomalyClasses.find(c => c.id === classId) || anomalyClasses[0];
@@ -240,10 +239,12 @@ export default function AnnotationEditor({
         };
         
         // Show edit modal for new annotation
+        const defaultClassId = 1;
+        const defaultClass = getClassById(defaultClassId);
         setEditingAnnotation({
           ...bbox,
-          classId: 1, // Default to "Loose Joint (Potential)"
-          className: "Loose Joint (Potential)",
+          classId: defaultClassId,
+          className: defaultClass.name,
           confidenceScore: 0.8,
           annotationType: "USER_ADDED",
           isNew: true
@@ -311,10 +312,13 @@ export default function AnnotationEditor({
       
       const method = annotationData.isNew ? 'POST' : 'PUT';
       
+      // Get the correct class name from anomalyClasses array
+      const classInfo = getClassById(annotationData.classId);
+      
       const requestData = {
         imageId: imageId,
         classId: annotationData.classId,
-        className: annotationData.className,
+        className: classInfo.name,
         confidenceScore: annotationData.confidenceScore,
         bboxX1: annotationData.bboxX1,
         bboxY1: annotationData.bboxY1,
