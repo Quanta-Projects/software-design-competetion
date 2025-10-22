@@ -170,6 +170,15 @@ export default function UploadPage() {
             anomalyDetectionResult = result;
             console.log("Detection results:", anomalyDetectionResult);
             
+            // Log active model information
+            if (result.active_model) {
+              console.log("🤖 Detection performed using model:", {
+                name: result.active_model.name,
+                directory: result.active_model.dir,
+                path: result.active_model.path
+              });
+            }
+            
             // Convert base64 annotated image to blob
             if (result.annotated_image_base64) {
               try {

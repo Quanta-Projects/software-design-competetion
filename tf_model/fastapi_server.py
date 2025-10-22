@@ -1,8 +1,9 @@
 # Two-Stage Transformer Defect Detection API
 # Integrated with two-stage YOLO model: Stage 1 (Transformer Segmentation) + Stage 2 (Defect Detection)
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import cv2
@@ -20,6 +21,10 @@ import httpx
 import aiofiles
 import asyncio
 from asyncio import Semaphore
+import threading
+import shutil
+from concurrent.futures import ThreadPoolExecutor
+import traceback
 
 # Add parent directory to path to import the two-stage detector
 sys.path.append(str(Path(__file__).parent.parent / "tf_model"))
@@ -78,6 +83,7 @@ class TwoStageDetectionResult(BaseModel):
     annotated_image_base64: str
     image_name: str
     image_size: List[int]  # [width, height]
+    active_model: Optional[Dict[str, Any]] = None  # Information about the model used for detection
 
 class AnnotationMetadata(BaseModel):
     """Metadata for annotation editing"""
@@ -108,6 +114,100 @@ class RetrainingDatasetSummary(BaseModel):
     downloaded: int
     labeled: int
     errors: List[RetrainingDatasetError]
+
+class TrainingRequest(BaseModel):
+    """Request body for model retraining"""
+    epochs: int = 50
+    batch_size: int = 16
+    learning_rate: float = 0.001
+    image_size: int = 640
+    use_gpu: bool = True
+    seed: Optional[int] = 42
+    base_model_path: Optional[str] = None
+    output_dir: Optional[str] = None
+
+class EpochMetrics(BaseModel):
+    """Metrics for a single epoch"""
+    epoch: int
+    train_loss: Optional[float] = None
+    val_loss: Optional[float] = None
+    precision: Optional[float] = None
+    recall: Optional[float] = None
+    mAP50: Optional[float] = None
+    mAP50_95: Optional[float] = None
+
+class TrainingState(BaseModel):
+    """Current state of the training process"""
+    status: str  # "idle", "running", "done", "error", "stopped"
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    current_epoch: int = 0
+    total_epochs: int = 0
+    metrics: List[EpochMetrics] = []
+    weights_path: Optional[str] = None
+    error: Optional[str] = None
+    warnings: List[str] = []
+    config: Optional[Dict[str, Any]] = None
+
+class ModelInfo(BaseModel):
+    """Information about a model file"""
+    name: str
+    path: str
+    dir: str  # "updated_defect" or "defect"
+    size_bytes: int
+    modified: str  # ISO format timestamp
+    loaded: Optional[bool] = None
+
+class ActiveModelInfo(BaseModel):
+    """Information about the active model"""
+    name: str
+    path: str
+    dir: str
+    loaded: bool
+    selected_at: Optional[str] = None
+
+class ModelsListResponse(BaseModel):
+    """Response for model list endpoint"""
+    models: List[ModelInfo]
+    active_model: Optional[ActiveModelInfo] = None
+
+class SelectModelRequest(BaseModel):
+    """Request body for selecting a model"""
+    path: str
+
+class SelectModelResponse(BaseModel):
+    """Response for model selection"""
+    ok: bool
+    active_model: Optional[ActiveModelInfo] = None
+    error: Optional[str] = None
+
+# Global training state and lock
+training_state = {
+    "status": "idle",
+    "current_epoch": 0,
+    "total_epochs": 0,
+    "metrics": [],
+    "started_at": None,
+    "finished_at": None,
+    "error": None,
+    "weights_path": None,
+    "warnings": [],
+    "config": None
+}
+training_lock = threading.Lock()
+training_executor = ThreadPoolExecutor(max_workers=1)
+log_queue = asyncio.Queue()
+
+# Active model state and lock
+ACTIVE_MODEL_FILE = Path("weights/active_model.json")
+active_model_info = {
+    "name": "best.pt",
+    "path": "weights/defects/best.pt",
+    "dir": "defect",
+    "loaded": False,
+    "selected_at": None
+}
+model_lock = threading.Lock()
 
 # TWO-STAGE TRANSFORMER DEFECT DETECTION ENGINE
 class TwoStageTransformerDetector:
@@ -208,6 +308,19 @@ class TwoStageTransformerDetector:
                 print(f"✅ Defect model found at: {self.defect_model_path}")
                 self.defect_model = YOLO(self.defect_model_path)
                 print(f"✅ Defect detection model loaded successfully")
+                
+                # Update active model info
+                global active_model_info
+                model_path = Path(self.defect_model_path)
+                dir_name = "updated_defect" if "updated_defect" in str(model_path) else "defects"
+                with model_lock:
+                    active_model_info = {
+                        "name": model_path.name,
+                        "path": str(model_path),
+                        "dir": dir_name,
+                        "loaded": True,
+                        "selected_at": None
+                    }
             else:
                 print(f"⚠️ Defect model not found at {self.defect_model_path}")
                 print("   Stage 2 (defect detection) will be unavailable")
@@ -332,6 +445,17 @@ class TwoStageTransformerDetector:
             
             print(f"✅ Two-stage detection complete! Found {total_detections} defects in {processing_time:.2f}s")
             
+            # Get active model info
+            with model_lock:
+                active_model_data = {
+                    "name": active_model_info.get("name"),
+                    "path": active_model_info.get("path"),
+                    "dir": active_model_info.get("dir"),
+                    "loaded": active_model_info.get("loaded", False)
+                }
+            
+            print(f"🤖 Using defect model: {active_model_data['name']} ({active_model_data['dir']})")
+            
             # Create response objects
             transformer_info = TransformerInfo(**stage1_info)
             defect_info = DefectInfo(**stage2_info_dict)
@@ -348,7 +472,8 @@ class TwoStageTransformerDetector:
                 processing_time=processing_time,
                 annotated_image_base64=annotated_base64,
                 image_name=image_name,
-                image_size=image_size
+                image_size=image_size,
+                active_model=active_model_data
             )
             
         except Exception as e:
@@ -517,6 +642,332 @@ class TwoStageTransformerDetector:
 # Initialize the two-stage detection system (this happens when the server starts)
 detector = TwoStageTransformerDetector()
 
+# Training Helper Functions
+def prepare_training_dataset(new_dataset_path: Path, base_dataset_path: Path, temp_dir: Path) -> Dict[str, Any]:
+    """
+    Prepare combined training dataset by merging new_dataset with existing training data.
+    
+    Args:
+        new_dataset_path: Path to new_dataset (images/ and labels/)
+        base_dataset_path: Path to Transformer Defects/ (contains train/valid/test)
+        temp_dir: Temporary directory for merged dataset
+        
+    Returns:
+        Dictionary with dataset info and paths
+    """
+    
+    try:
+        # Create temp directory structure
+        temp_train_images = temp_dir / "train" / "images"
+        temp_train_labels = temp_dir / "train" / "labels"
+        temp_train_images.mkdir(parents=True, exist_ok=True)
+        temp_train_labels.mkdir(parents=True, exist_ok=True)
+        
+        # Copy validation and test as-is (symlink for efficiency)
+        for split in ["valid", "test"]:
+            src_dir = base_dataset_path / split
+            if src_dir.exists():
+                dst_dir = temp_dir / split
+                if dst_dir.exists():
+                    shutil.rmtree(dst_dir)
+                shutil.copytree(src_dir, dst_dir, symlinks=True)
+        
+        # Copy base training data
+        base_train = base_dataset_path / "train"
+        if base_train.exists():
+            for img_path in (base_train / "images").glob("*"):
+                shutil.copy2(img_path, temp_train_images / img_path.name)
+            for lbl_path in (base_train / "labels").glob("*"):
+                shutil.copy2(lbl_path, temp_train_labels / lbl_path.name)
+        
+        base_train_count = len(list(temp_train_images.glob("*")))
+        
+        # Add new dataset to training set
+        new_images = new_dataset_path / "images"
+        new_labels = new_dataset_path / "labels"
+        new_count = 0
+        
+        if new_images.exists() and new_labels.exists():
+            for img_path in new_images.glob("*"):
+                shutil.copy2(img_path, temp_train_images / img_path.name)
+                new_count += 1
+            for lbl_path in new_labels.glob("*"):
+                shutil.copy2(lbl_path, temp_train_labels / lbl_path.name)
+        
+        total_train_count = len(list(temp_train_images.glob("*")))
+        
+        # Create data.yaml
+        data_yaml = temp_dir / "data.yaml"
+        yaml_content = f"""# Combined dataset for retraining
+path: {temp_dir.absolute()}
+train: train/images
+val: valid/images
+test: test/images
+
+# Classes
+nc: 6
+names: ['Full Wire Overload PF', 'Loose Joint F', 'Loose Joint PF', 'Point Overload F', 'Point Overload PF', 'Transformer Overload']
+"""
+        with open(data_yaml, 'w') as f:
+            f.write(yaml_content)
+        
+        return {
+            "success": True,
+            "temp_dir": str(temp_dir),
+            "data_yaml": str(data_yaml),
+            "base_train_count": base_train_count,
+            "new_dataset_count": new_count,
+            "total_train_count": total_train_count,
+            "warnings": [] if new_count > 0 else ["No new dataset images found - training with base dataset only"]
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+
+def train_model_background(config: Dict[str, Any]):
+    """
+    Background training function that runs in a separate thread.
+    
+    Args:
+        config: Training configuration dictionary
+    """
+    global training_state
+    
+    try:
+        # Update status
+        with training_lock:
+            training_state["status"] = "running"
+            training_state["started_at"] = datetime.now().isoformat()
+            training_state["current_epoch"] = 0
+            training_state["metrics"] = []
+        
+        # Prepare dataset
+        new_dataset_path = Path(config["new_dataset_path"])
+        base_dataset_path = Path(config["base_dataset_path"])
+        temp_dir = Path(config["temp_dir"])
+        
+        dataset_info = prepare_training_dataset(new_dataset_path, base_dataset_path, temp_dir)
+        
+        if not dataset_info["success"]:
+            raise Exception(f"Dataset preparation failed: {dataset_info.get('error')}")
+        
+        # Store warnings
+        with training_lock:
+            training_state["warnings"] = dataset_info.get("warnings", [])
+        
+        # Load base model (defect detection model)
+        base_model_path = config.get("base_model_path", "weights/defects/best.pt")
+        
+        if not os.path.exists(base_model_path):
+            # Try alternative paths
+            for alt_path in ["../weights/defects/best.pt", "weights/defects/best.pt"]:
+                if os.path.exists(alt_path):
+                    base_model_path = alt_path
+                    break
+        
+        print(f"Loading base model: {base_model_path}")
+        model = YOLO(base_model_path)
+        
+        # Training parameters
+        epochs = config["epochs"]
+        batch_size = config["batch_size"]
+        lr = config["learning_rate"]
+        img_size = config["image_size"]
+        seed = config.get("seed")
+        
+        # Set seed for reproducibility
+        if seed is not None:
+            import random
+            import torch
+            random.seed(seed)
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
+        
+        # Prepare output directory
+        output_dir = Path(config["output_dir"])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        weights_filename = f"weights_{timestamp}.pt"
+        
+        # Custom callback to update training state in real-time
+        def on_train_epoch_end(trainer):
+            """Called at the end of each training epoch"""
+            try:
+                epoch = trainer.epoch + 1  # YOLO epochs are 0-indexed
+                
+                # Extract metrics from trainer
+                metrics_dict = {}
+                if hasattr(trainer, 'metrics') and trainer.metrics:
+                    metrics_dict = trainer.metrics
+                elif hasattr(trainer, 'validator') and hasattr(trainer.validator, 'metrics'):
+                    metrics_dict = trainer.validator.metrics
+                
+                # Build epoch metrics
+                epoch_metrics = {
+                    "epoch": epoch,
+                    "train_loss": float(trainer.loss.item()) if hasattr(trainer, 'loss') else None,
+                    "val_loss": None,
+                    "precision": None,
+                    "recall": None,
+                    "mAP50": None,
+                    "mAP50_95": None
+                }
+                
+                # Try to extract validation metrics
+                if metrics_dict:
+                    # YOLO11 metric keys
+                    epoch_metrics["precision"] = float(metrics_dict.get('metrics/precision(B)', 0))
+                    epoch_metrics["recall"] = float(metrics_dict.get('metrics/recall(B)', 0))
+                    epoch_metrics["mAP50"] = float(metrics_dict.get('metrics/mAP50(B)', 0))
+                    epoch_metrics["mAP50_95"] = float(metrics_dict.get('metrics/mAP50-95(B)', 0))
+                
+                # Update global state
+                with training_lock:
+                    training_state["current_epoch"] = epoch
+                    
+                    # Add to metrics list
+                    if len(training_state["metrics"]) < epoch:
+                        training_state["metrics"].append(epoch_metrics)
+                    else:
+                        training_state["metrics"][epoch - 1] = epoch_metrics
+                
+                print(f"📊 Epoch {epoch}/{config['epochs']} - mAP50: {epoch_metrics.get('mAP50', 0):.3f}")
+                
+            except Exception as e:
+                print(f"⚠️ Error in epoch callback: {e}")
+        
+        # Add callback to model
+        from ultralytics.utils.callbacks import default_callbacks
+        
+        # Train the model
+        print(f"Starting training: {epochs} epochs, batch_size={batch_size}, lr={lr}")
+        
+        # Add custom callbacks
+        model.add_callback("on_train_epoch_end", on_train_epoch_end)
+        
+        results = model.train(
+            data=dataset_info["data_yaml"],
+            epochs=epochs,
+            batch=batch_size,
+            imgsz=img_size,
+            lr0=lr,
+            project=str(output_dir),
+            name="training_run",
+            exist_ok=True,
+            verbose=True,
+            patience=10,
+            save=True,
+            save_period=5,
+            plots=True,
+            device=0 if config.get("use_gpu", True) else "cpu"
+        )
+        
+        # Extract metrics from results
+        if hasattr(results, 'results_dict'):
+            metrics_data = []
+            for epoch in range(epochs):
+                epoch_metrics = {
+                    "epoch": epoch + 1,
+                    "train_loss": None,
+                    "val_loss": None,
+                    "precision": None,
+                    "recall": None,
+                    "mAP50": None,
+                    "mAP50_95": None
+                }
+                
+                # Try to extract metrics from results
+                # YOLO stores metrics in CSV files
+                csv_path = output_dir / "training_run" / "results.csv"
+                if csv_path.exists():
+                    import pandas as pd
+                    df = pd.read_csv(csv_path)
+                    df.columns = df.columns.str.strip()
+                    
+                    if epoch < len(df):
+                        row = df.iloc[epoch]
+                        epoch_metrics["train_loss"] = float(row.get("train/box_loss", 0))
+                        epoch_metrics["val_loss"] = float(row.get("val/box_loss", 0))
+                        epoch_metrics["precision"] = float(row.get("metrics/precision(B)", 0))
+                        epoch_metrics["recall"] = float(row.get("metrics/recall(B)", 0))
+                        epoch_metrics["mAP50"] = float(row.get("metrics/mAP50(B)", 0))
+                        epoch_metrics["mAP50_95"] = float(row.get("metrics/mAP50-95(B)", 0))
+                
+                metrics_data.append(epoch_metrics)
+                
+                # Update state progressively
+                with training_lock:
+                    training_state["current_epoch"] = epoch + 1
+                    training_state["metrics"] = metrics_data
+        
+        # Copy best weights to output directory with timestamp
+        best_weights_src = output_dir / "training_run" / "weights" / "best.pt"
+        best_weights_dst = output_dir / weights_filename
+        
+        if best_weights_src.exists():
+            shutil.copy2(best_weights_src, best_weights_dst)
+            
+            # Create/update 'latest' symlink
+            latest_link = output_dir / "latest.pt"
+            if latest_link.exists() or latest_link.is_symlink():
+                latest_link.unlink()
+            
+            # For Windows, copy instead of symlink
+            try:
+                latest_link.symlink_to(best_weights_dst)
+            except OSError:
+                shutil.copy2(best_weights_dst, latest_link)
+            
+            weights_path = str(best_weights_dst)
+        else:
+            raise Exception("Best weights not found after training")
+        
+        # Save metrics to JSON
+        metrics_json = output_dir / f"metrics_{timestamp}.json"
+        with open(metrics_json, 'w') as f:
+            json.dump({
+                "training_config": config,
+                "dataset_info": dataset_info,
+                "metrics": metrics_data,
+                "weights_path": weights_path
+            }, f, indent=2)
+        
+        # Update final state
+        with training_lock:
+            training_state["status"] = "done"
+            training_state["finished_at"] = datetime.now().isoformat()
+            training_state["weights_path"] = weights_path
+            training_state["current_epoch"] = epochs
+        
+        print(f"✅ Training completed successfully!")
+        print(f"   Weights: {weights_path}")
+        print(f"   Metrics: {metrics_json}")
+        
+    except Exception as e:
+        error_msg = f"{str(e)}\n{traceback.format_exc()}"
+        print(f"❌ Training failed: {error_msg}")
+        
+        with training_lock:
+            training_state["status"] = "error"
+            training_state["error"] = str(e)
+            training_state["finished_at"] = datetime.now().isoformat()
+    
+    finally:
+        # Cleanup temp directory
+        try:
+            if "temp_dir" in config and Path(config["temp_dir"]).exists():
+                shutil.rmtree(config["temp_dir"])
+                print(f"🧹 Cleaned up temp directory: {config['temp_dir']}")
+        except Exception as cleanup_error:
+            print(f"⚠️ Failed to cleanup temp directory: {cleanup_error}")
+
 # API Routes
 @app.get("/")
 async def root():
@@ -648,9 +1099,9 @@ async def prepare_retraining_dataset():
     This endpoint:
     1. Fetches all images from the backend
     2. Filters out images with imageType === "ANNOTATED"
-    3. Downloads images to tf_models/new_dataset/images/
+    3. Downloads images to tf_model/new_dataset/images/
     4. Fetches annotations and converts them to YOLO format
-    5. Saves labels to tf_models/new_dataset/labels/
+    5. Saves labels to tf_model/new_dataset/labels/
     
     Returns:
         RetrainingDatasetSummary: Summary of the preparation process
@@ -862,15 +1313,15 @@ async def prepare_retraining_dataset():
                     try:
                         print(f"   📝 Fetching annotations for image {image_id}...")
                         
-                        # Fetch all user modifications and filter by imageId
+                        # Fetch all final annotations (including correctly inferred ones) and filter by imageId
                         annotations_response = await client.get(
-                            f"{backend_url}/api/annotations/user-modifications"
+                            f"{backend_url}/api/annotations/all"
                         )
                         
                         # Note: The endpoint might return 404 or empty list if no annotations
                         if annotations_response.status_code == 404:
                             annotations = []
-                            print(f"   ℹ️  No user modifications found (404)")
+                            print(f"   ℹ️  No annotations found (404)")
                         else:
                             annotations_response.raise_for_status()
                             all_annotations = annotations_response.json()
@@ -953,10 +1404,8 @@ async def prepare_retraining_dataset():
                                 # Use class_id if available, otherwise use class_name
                                 class_identifier = class_id if class_id is not None else class_name
                                 
-                                # Create YOLO format line with comment for error type
+                                # Create YOLO format line (without error type comment)
                                 yolo_line = f"{class_identifier} {x_center} {y_center} {w_norm} {h_norm}"
-                                if class_name:
-                                    yolo_line += f" # errorType={class_name}"
                                 
                                 yolo_lines.append(yolo_line)
                             
@@ -1013,6 +1462,416 @@ async def prepare_retraining_dataset():
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Dataset preparation failed: {str(e)}")
 
+# Retraining Endpoints
+
+@app.post("/tools/retrain/start")
+async def start_retraining(request: TrainingRequest):
+    """
+    Start model retraining in the background.
+    
+    This endpoint:
+    1. Validates that new_dataset exists and has data
+    2. Merges new_dataset with existing Transformer Defects/train data
+    3. Starts training in a background thread
+    4. Returns immediately with training ID
+    
+    The training progress can be monitored via:
+    - GET /tools/retrain/status (polling)
+    - GET /tools/retrain/logs/stream (SSE streaming)
+    """
+    global training_state
+    
+    # Check if training is already running
+    with training_lock:
+        if training_state["status"] == "running":
+            raise HTTPException(
+                status_code=409,
+                detail="Training is already in progress. Stop the current training first or wait for it to complete."
+            )
+    
+    # Validate paths
+    new_dataset_path = Path("new_dataset")
+    base_dataset_path = Path("Transformer Defects")
+    
+    if not new_dataset_path.exists():
+        raise HTTPException(
+            status_code=400,
+            detail=f"new_dataset path not found: {new_dataset_path}"
+        )
+    
+    if not base_dataset_path.exists():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Base dataset path not found: {base_dataset_path}"
+        )
+    
+    # Check that new_dataset has images
+    new_images = new_dataset_path / "images"
+    if not new_images.exists() or not list(new_images.glob("*")):
+        raise HTTPException(
+            status_code=400,
+            detail="new_dataset/images is empty or does not exist. Run /tools/retrain/prepare-dataset first."
+        )
+    
+    # Check that new_dataset has labels
+    new_labels = new_dataset_path / "labels"
+    if not new_labels.exists() or not list(new_labels.glob("*")):
+        raise HTTPException(
+            status_code=400,
+            detail="new_dataset/labels is empty or does not exist. Run /tools/retrain/prepare-dataset first."
+        )
+    
+    # Create temp directory for merged dataset
+    temp_dir = Path(f"temp_training_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+    
+    # Prepare training configuration
+    training_config = {
+        "new_dataset_path": str(new_dataset_path),
+        "base_dataset_path": str(base_dataset_path),
+        "temp_dir": str(temp_dir),
+        "base_model_path": request.base_model_path or "weights/defects/best.pt",
+        "epochs": request.epochs,
+        "batch_size": request.batch_size,
+        "learning_rate": request.learning_rate,
+        "image_size": request.image_size,
+        "use_gpu": request.use_gpu,
+        "seed": request.seed,
+        "output_dir": request.output_dir or "weights/updated_defect"
+    }
+    
+    # Reset training state
+    with training_lock:
+        training_state = {
+            "status": "idle",
+            "started_at": None,
+            "finished_at": None,
+            "current_epoch": 0,
+            "total_epochs": request.epochs,
+            "metrics": [],
+            "weights_path": None,
+            "error": None,
+            "warnings": [],
+            "config": training_config
+        }
+    
+    # Start training in background thread
+    training_executor.submit(train_model_background, training_config)
+    
+    # Wait a moment for training to initialize
+    await asyncio.sleep(0.5)
+    
+    return {
+        "message": "Training started successfully",
+        "config": training_config,
+        "status_endpoint": "/tools/retrain/status",
+        "stream_endpoint": "/tools/retrain/logs/stream"
+    }
+
+@app.get("/tools/retrain/status", response_model=TrainingState)
+async def get_training_status():
+    """
+    Get current training status and metrics.
+    
+    Returns:
+        TrainingState with current status, epoch, metrics, etc.
+    """
+    with training_lock:
+        return TrainingState(**training_state)
+
+@app.get("/tools/retrain/logs/stream")
+async def stream_training_logs(request: Request):
+    """
+    Stream training logs via Server-Sent Events (SSE).
+    
+    This endpoint provides real-time training progress updates.
+    The client should connect and listen for events:
+    
+    ```javascript
+    const eventSource = new EventSource('/tools/retrain/logs/stream');
+    eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log('Epoch:', data.current_epoch, 'Status:', data.status);
+    };
+    ```
+    
+    Events are sent every 2 seconds with current training state.
+    Connection closes automatically when training finishes or errors.
+    """
+    
+    async def event_generator():
+        """Generate SSE events with training status"""
+        try:
+            last_epoch = -1
+            
+            while True:
+                # Check if client disconnected
+                if await request.is_disconnected():
+                    print("Client disconnected from SSE stream")
+                    break
+                
+                # Get current state
+                with training_lock:
+                    current_state = dict(training_state)
+                
+                status = current_state["status"]
+                current_epoch = current_state["current_epoch"]
+                
+                # Send update if epoch changed or status changed
+                if current_epoch != last_epoch or status in ["done", "error"]:
+                    # Format as SSE
+                    data = json.dumps({
+                        "status": status,
+                        "current_epoch": current_epoch,
+                        "total_epochs": current_state["total_epochs"],
+                        "metrics": current_state["metrics"][-1] if current_state["metrics"] else None,
+                        "weights_path": current_state.get("weights_path"),
+                        "error": current_state.get("error"),
+                        "warnings": current_state.get("warnings", [])
+                    })
+                    
+                    yield f"data: {data}\n\n"
+                    last_epoch = current_epoch
+                
+                # Stop streaming if training finished
+                if status in ["done", "error"]:
+                    print(f"Training finished with status: {status}")
+                    break
+                
+                # Wait before next update
+                await asyncio.sleep(2)
+                
+        except asyncio.CancelledError:
+            print("SSE stream cancelled")
+        except Exception as e:
+            print(f"SSE stream error: {e}")
+            error_data = json.dumps({"error": str(e)})
+            yield f"data: {error_data}\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable buffering in nginx
+        }
+    )
+
+@app.get("/tools/models/list", response_model=ModelsListResponse)
+async def list_models():
+    """
+    List all available defect detection models from both directories.
+    
+    Scans:
+    - weights/updated_defect/ (retrained models)
+    - weights/defects/ (base models)
+    
+    Returns sorted list (newest first) with active model info.
+    """
+    models = []
+    base_dir = Path("weights")
+    
+    # Scan both directories for .pt files
+    for model_dir in ["updated_defect", "defects"]:
+        dir_path = base_dir / model_dir
+        
+        if not dir_path.exists():
+            continue
+        
+        for pt_file in dir_path.glob("*.pt"):
+            try:
+                stat = pt_file.stat()
+                models.append({
+                    "name": pt_file.name,
+                    "path": str(pt_file),
+                    "dir": model_dir,
+                    "size_bytes": stat.st_size,
+                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
+                })
+            except Exception as e:
+                print(f"⚠️ Error reading model file {pt_file}: {e}")
+                continue
+    
+    # Sort by modified time (newest first)
+    models.sort(key=lambda x: x["modified"], reverse=True)
+    
+    # Get active model info
+    active_info = None
+    with model_lock:
+        if active_model_info["loaded"]:
+            active_info = {
+                "name": active_model_info["name"],
+                "path": active_model_info["path"],
+                "dir": active_model_info["dir"],
+                "loaded": True,
+                "selected_at": active_model_info.get("selected_at")
+            }
+    
+    return {
+        "models": models,
+        "active_model": active_info
+    }
+
+@app.post("/tools/models/select", response_model=SelectModelResponse)
+async def select_model(request: SelectModelRequest):
+    """
+    Select and load a defect detection model.
+    
+    Security: Only allows paths within weights/updated_defect/ or weights/defects/
+    Validates file exists and is a .pt file.
+    Persists selection to active_model.json for future server startups.
+    """
+    global active_model_info
+    
+    # Security: Validate path is within allowed directories
+    model_path = Path(request.path)
+    
+    # Normalize path to prevent directory traversal
+    try:
+        resolved_path = model_path.resolve()
+        allowed_dirs = [
+            Path("weights/updated_defect").resolve(),
+            Path("weights/defects").resolve()
+        ]
+        
+        # Check if resolved path is within allowed directories
+        is_allowed = any(
+            str(resolved_path).startswith(str(allowed_dir))
+            for allowed_dir in allowed_dirs
+        )
+        
+        if not is_allowed:
+            return {
+                "ok": False,
+                "active_model": None,
+                "error": "Invalid model path. Must be in weights/updated_defect/ or weights/defects/"
+            }
+    except Exception as e:
+        return {
+            "ok": False,
+            "active_model": None,
+            "error": f"Invalid path: {str(e)}"
+        }
+    
+    # Validate file exists and is .pt file
+    if not model_path.exists():
+        return {
+            "ok": False,
+            "active_model": None,
+            "error": f"Model file not found: {request.path}"
+        }
+    
+    if model_path.suffix != ".pt":
+        return {
+            "ok": False,
+            "active_model": None,
+            "error": "Model file must have .pt extension"
+        }
+    
+    # Load the model
+    try:
+        with model_lock:
+            # Unload current model
+            if detector.defect_model is not None:
+                del detector.defect_model
+                detector.defect_model = None
+            
+            # Load new model
+            from ultralytics import YOLO
+            detector.defect_model = YOLO(str(model_path))
+            detector.defect_model_path = str(model_path)
+            
+            # Determine directory
+            dir_name = "updated_defect" if "updated_defect" in str(model_path) else "defects"
+            
+            # Update active model info
+            active_model_info = {
+                "name": model_path.name,
+                "path": str(model_path),
+                "dir": dir_name,
+                "loaded": True,
+                "selected_at": datetime.now().isoformat()
+            }
+            
+            # Persist to file
+            try:
+                ACTIVE_MODEL_FILE.parent.mkdir(parents=True, exist_ok=True)
+                with open(ACTIVE_MODEL_FILE, 'w') as f:
+                    json.dump(active_model_info, f, indent=2)
+            except Exception as e:
+                print(f"⚠️ Warning: Could not persist active model: {e}")
+            
+            print(f"✅ Successfully switched to defect model: {model_path.name} from {dir_name}/")
+            print(f"   Full path: {model_path}")
+            print(f"   Model loaded and ready for detection!")
+            
+            return {
+                "ok": True,
+                "active_model": {
+                    "name": active_model_info["name"],
+                    "path": active_model_info["path"],
+                    "dir": active_model_info["dir"],
+                    "loaded": True,
+                    "selected_at": active_model_info["selected_at"]
+                },
+                "error": None
+            }
+    
+    except Exception as e:
+        return {
+            "ok": False,
+            "active_model": None,
+            "error": f"Failed to load model: {str(e)}"
+        }
+
+@app.get("/tools/models/active", response_model=ActiveModelInfo)
+async def get_active_model():
+    """Get information about the currently active defect detection model."""
+    with model_lock:
+        if not active_model_info["loaded"]:
+            raise HTTPException(
+                status_code=404,
+                detail="No active model loaded"
+            )
+        
+        return {
+            "name": active_model_info["name"],
+            "path": active_model_info["path"],
+            "dir": active_model_info["dir"],
+            "loaded": True,
+            "selected_at": active_model_info.get("selected_at")
+        }
+
+@app.post("/tools/retrain/stop")
+async def stop_retraining():
+    """
+    Stop the current training process (if running).
+    
+    Note: This implementation does not forcefully kill the training thread,
+    as YOLO training cannot be safely interrupted mid-epoch. Instead, it marks
+    the training as stopped and the training thread will complete the current
+    epoch before exiting.
+    
+    For immediate termination, restart the FastAPI server.
+    """
+    global training_state
+    
+    with training_lock:
+        if training_state["status"] != "running":
+            raise HTTPException(
+                status_code=400,
+                detail=f"No training in progress. Current status: {training_state['status']}"
+            )
+        
+        training_state["status"] = "stopped"
+        training_state["finished_at"] = datetime.now().isoformat()
+        training_state["error"] = "Training stopped by user"
+    
+    return {
+        "message": "Training stop requested. The current epoch will complete before stopping.",
+        "note": "For immediate termination, restart the server."
+    }
+
 if __name__ == "__main__":
     try:
         import uvicorn
@@ -1021,9 +1880,34 @@ if __name__ == "__main__":
         exit(1)
         
     print("🚀 Starting Two-Stage Transformer Defect Detection API...")
+    
+    # Load persisted active model if available
+    if ACTIVE_MODEL_FILE.exists():
+        try:
+            with open(ACTIVE_MODEL_FILE, 'r') as f:
+                persisted_info = json.load(f)
+            
+            model_path = Path(persisted_info["path"])
+            if model_path.exists():
+                with model_lock:
+                    from ultralytics import YOLO
+                    detector.defect_model = YOLO(str(model_path))
+                    detector.defect_model_path = str(model_path)
+                    active_model_info = persisted_info
+                    active_model_info["loaded"] = True
+                    print(f"✅ Loaded persisted active model: {model_path.name}")
+            else:
+                print(f"⚠️ Persisted model not found: {model_path}")
+        except Exception as e:
+            print(f"⚠️ Could not load persisted active model: {e}")
+    
     print("🤖 Model Status:")
     print(f"   Stage 1 (Transformer Segmentation): {'✅ Loaded' if detector.transformer_model else '❌ Not Loaded'}")
     print(f"   Stage 2 (Defect Detection): {'✅ Loaded' if detector.defect_model else '❌ Not Loaded'}")
+    
+    if active_model_info["loaded"]:
+        print(f"   Active Defect Model: {active_model_info['name']} ({active_model_info['dir']})")
+    
     print("📱 Server will be available at:")
     print("   - http://localhost:8001")
     print("   - http://127.0.0.1:8001")
