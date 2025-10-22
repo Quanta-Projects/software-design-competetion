@@ -89,4 +89,10 @@ public interface AnnotationRepository extends JpaRepository<Annotation, Integer>
      */
     @Query("SELECT a FROM Annotation a WHERE a.annotationType IN ('USER_ADDED', 'USER_EDITED', 'USER_DELETED') AND a.isActive = true ORDER BY a.updatedAt DESC")
     List<Annotation> findUserModifiedAnnotations();
+
+    /**
+     * Find user-modified annotations for audit trail
+     */
+    @Query("SELECT a FROM Annotation a WHERE a.isActive = true ORDER BY a.updatedAt DESC")
+    List<Annotation> findAllAnnotations();
 }

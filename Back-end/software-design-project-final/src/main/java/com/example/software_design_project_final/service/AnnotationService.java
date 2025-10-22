@@ -206,4 +206,14 @@ public class AnnotationService {
         Annotation updatedAnnotation = annotationRepository.save(annotation);
         return new AnnotationResponse(updatedAnnotation);
     }
+
+    /**
+     * Get all annotations (for admin/audit purposes)
+     */    @Transactional(readOnly = true)
+    public List<AnnotationResponse> getAllAnnotations() {
+        List<Annotation> annotations = annotationRepository.findAllAnnotations();
+        return annotations.stream()
+                .map(AnnotationResponse::new)
+                .collect(Collectors.toList());
+    }
 }
